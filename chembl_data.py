@@ -10,17 +10,39 @@ def csr2indices(csr):
 
 class Data:
   def __init__(self, Xtr, Xte, Ytr, Yte):
-    self.Xtrain = Xtr
+    self.Xtrain = Xtr.tocsr()
     self.Ytrain = Ytr.reshape(-1, 1)
-    self.Xtest  = Xte
+    self.Xtest  = Xte.tocsr()
     self.Ytest  = Yte.reshape(-1, 1)
     self.Nfeat  = Xtr.shape[1]
 
-def split_train_test(X, Y, ratio):
-    nrow  = X.shape[0]
-    ntest = int(round(nrow * ratio))
-    rperm = np.random.permutation(nrow)
-    train = rperm[ntest:]
-    test  = rperm[0:ntest]
-    return Data(X[train], X[test], Y[train], Y[test])
+  def randomize_train(self):
+    idx = range(len(self.Ytrain))
+    np.random.shuffle(idx)
+    self.Ytrain = self.Ytrain[idx]
+    self.Xtrain = self.Xtrain[idx]
 
+  def get_train_batch(self, start, batch_size):
+    indices, shape, ids_val = csr2indices(self.Xtrain[start : start + batch_size])
+    return indices, shape, ids_val, self.Ytrain[start : start + batch_size]
+
+
+def make_target_col(data, label, col, ratio):
+  idx  = (label.col == col).nonzero()[0]
+  Y    = label.data[idx]
+  rows = label.row[idx]
+  X    = data.tocsr()[rows,:]
+
+  ntrain = np.int(np.round((1 - ratio) * Y.shape[0]))
+  rIdx  = np.random.permutation(Y.shape[0])
+  trIdx = rIdx[0:ntrain]
+  teIdx = rIdx[ntrain:]
+
+  Xtr  = X[trIdx,:]
+  Xte  = X[teIdx, :]
+  Ytr  = Y[trIdx]
+  Ymean = Ytr.mean()
+  Ytr  = Ytr - Ymean
+  Yte  = Y[teIdx] - Ymean
+
+  return Xtr, Ytr, Xte, Yte
