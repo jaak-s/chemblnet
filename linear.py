@@ -39,6 +39,8 @@ train_op   = tf.train.AdamOptimizer(3e-3).minimize(loss)
 # test set
 Xte_indices, Xte_shape, Xte_ids_val = cd.csr2indices(Xte)
 Yte = Yte.reshape(-1, 1)
+Xtr_indices, Xtr_shape, Xtr_ids_val = cd.csr2indices(Xtr)
+Ytr2 = Ytr.reshape(-1, 1)
 
 batch_size = 32
 
@@ -55,13 +57,14 @@ with tf.Session() as sess:
       idx = rIdx[start : start + batch_size]
       indices, shape, ids_val = cd.csr2indices(Xtr[idx,:])
       y_batch = Ytr[idx].reshape(-1, 1)
-      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, lambda_reg: 0.5})
+      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, lambda_reg: 0.1})
 
     ## epoch's Ytest error
     if epoch % 10 == 0:
-      test_error = sess.run(y_loss, feed_dict = {sp_indices: Xte_indices, sp_shape: Xte_shape, sp_ids_val: Xte_ids_val, y: Yte})
+      test_error  = sess.run(y_loss, feed_dict = {sp_indices: Xte_indices, sp_shape: Xte_shape, sp_ids_val: Xte_ids_val, y: Yte})
+      train_error = sess.run(y_loss, feed_dict = {sp_indices: Xtr_indices, sp_shape: Xtr_shape, sp_ids_val: Xtr_ids_val, y: Ytr2})
       W_l2 = sess.run(tf.nn.l2_loss(W))
-      print(epoch, test_error, W_l2)
+      print("%3d. RMSE(test) = %.5f  RMSE(train) = %.5f  ||W|| = %.5f" % (epoch, np.sqrt(test_error), np.sqrt(train_error), np.sqrt(W_l2) ))
 
 
 
