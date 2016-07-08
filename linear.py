@@ -22,7 +22,7 @@ for damp in [1.0, 4.0, 10.0]:
 # linear model for sparse input
 W = tf.Variable(tf.truncated_normal([Nfeat, 1], stddev=1/500.0))
 b = tf.Variable(tf.zeros([1]))
-lambda_reg = tf.placeholder("float")
+W_reg      = tf.placeholder("float")
 y          = tf.placeholder("float", shape=[None, 1])
 sp_indices = tf.placeholder(tf.int64)
 sp_shape   = tf.placeholder(tf.int64)
@@ -30,7 +30,7 @@ sp_ids_val = tf.placeholder(tf.int64)
 sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 y_pred     = tf.nn.embedding_lookup_sparse(W, sp_ids, None, combiner = "sum") + b
 y_loss     = tf.reduce_mean(tf.square(y - y_pred))
-l2_reg     = lambda_reg * tf.nn.l2_loss(W)
+l2_reg     = W_reg * tf.nn.l2_loss(W)
 loss       = l2_reg + y_loss
 
 # Use the adam optimizer
@@ -57,7 +57,7 @@ with tf.Session() as sess:
       idx = rIdx[start : start + batch_size]
       indices, shape, ids_val = cd.csr2indices(Xtr[idx,:])
       y_batch = Ytr[idx].reshape(-1, 1)
-      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, lambda_reg: 0.1})
+      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, W_reg: 0.1})
 
     ## epoch's Ytest error
     if epoch % 10 == 0:
