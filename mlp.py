@@ -61,7 +61,7 @@ with tf.Session() as sess:
       idx = rIdx[start : start + batch_size]
       indices, shape, ids_val = cd.csr2indices(Xtr[idx,:])
       y_batch = Ytr[idx].reshape(-1, 1)
-      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, lambda_reg: 0.5})
+      sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, lambda_reg: 0.1})
 
     ## epoch's Ytest error
     if epoch % 10 == 0:
