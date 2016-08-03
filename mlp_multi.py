@@ -16,9 +16,9 @@ Nprot  = Ytrain.shape[1]
 
 print("St. deviation:   %f" % np.std( Ytest.data ))
 
-h1_size = 100
+h1_size    = 100
 batch_size = 512
-reg = 0.05
+reg        = 0.02
 
 ## variables for the model
 W1 = tf.Variable(tf.truncated_normal([Nfeat, h1_size], stddev=1/500.0))
@@ -50,8 +50,9 @@ l2_reg     = lambda_reg * tf.nn.l2_loss(W1) + lambda_reg * tf.nn.l2_loss(W2)
 loss       = l2_reg + y_loss / np.float32(batch_size)
 
 # Use the adam optimizer
-train_op   = tf.train.AdamOptimizer(1e-3).minimize(loss)
-#train_op   = tf.train.RMSPropOptimizer(1e-3, momentum = 0.9).minimize(loss)
+#train_op   = tf.train.AdamOptimizer(0.005).minimize(loss)
+#train_op   = tf.train.RMSPropOptimizer(0.005, momentum = 0.9).minimize(loss)
+train_op   = tf.train.AdagradOptimizer(0.05).minimize(loss)
 
 def select_rows(X, row_idx):
   Xtmp = X[row_idx]
