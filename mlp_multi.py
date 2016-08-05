@@ -19,6 +19,8 @@ print("St. deviation:   %f" % np.std( Ytest.data ))
 h1_size    = 100
 batch_size = 512
 reg        = 0.02
+lrate0     = 0.08
+lrate_decay = 1.0 #0.986
 
 ## variables for the model
 W1 = tf.Variable(tf.truncated_normal([Nfeat, h1_size], stddev=1/500.0))
@@ -36,6 +38,7 @@ sp_ids_val = tf.placeholder(tf.int64)
 
 ## regularization parameter
 lambda_reg = tf.placeholder(tf.float32)
+learning_rate = tf.placeholder(tf.float32)
 
 ## model setup
 sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
@@ -52,7 +55,7 @@ loss       = l2_reg + y_loss / np.float32(batch_size)
 # Use the adam optimizer
 #train_op   = tf.train.AdamOptimizer(0.005).minimize(loss)
 #train_op   = tf.train.RMSPropOptimizer(0.005, momentum = 0.9).minimize(loss)
-train_op   = tf.train.AdagradOptimizer(0.05).minimize(loss)
+train_op   = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
 
 def select_rows(X, row_idx):
   Xtmp = X[row_idx]
@@ -81,6 +84,7 @@ with tf.Session() as sess:
   sess.run(tf.initialize_all_variables())
 
   for epoch in range(300):
+    lrate = lrate0 * lrate_decay**epoch
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -97,7 +101,8 @@ with tf.Session() as sess:
                                     y_idx_comp: by_idx_comp,
                                     y_idx_prot: by_idx_prot,
                                     y_val:      by_val,
-                                    lambda_reg: reg})
+                                    lambda_reg: reg,
+                                    learning_rate: lrate})
 
     ## epoch's Ytest error
     if epoch % 1 == 0:
