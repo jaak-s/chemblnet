@@ -7,7 +7,6 @@ label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 # 109, 167, 168, 204, 214, 215
 
-#Xtr, Ytr, Xte, Yte = cd.make_target_col(data, label, 168, 0.2)
 Ytrain, Ytest = cd.make_train_test(label, 0.2)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
@@ -71,11 +70,6 @@ def select_y(X, row_idx):
 
 Xi, Xs, Xv = select_rows(X, np.arange(X.shape[0]))
 Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest.shape[0]))
-
-# sess.run(h1e, feed_dict={sp_indices: bx_indices, sp_shape: [0, 0], sp_ids_val: bx_ids_val, y_idx_comp : by_idx_comp })
-# sess.run(W2e, feed_dict={sp_indices: bx_indices, sp_shape: [0, 0], sp_ids_val: bx_ids_val, y_idx_comp : by_idx_comp, y_idx_prot: by_idx_prot })
-# sess.run(y_pred, feed_dict={y_val: by_val, y_idx_prot: by_idx_prot, y_idx_comp: by_idx_comp, sp_indices: bx_indices, sp_shape: [0, 0], sp_ids_val: bx_ids_val })
-# sess.run(y_loss, feed_dict={y_val: by_val, y_idx_prot: by_idx_prot, y_idx_comp: by_idx_comp, sp_indices: bx_indices, sp_shape: [0, 0], sp_ids_val: bx_ids_val, y_val: by_val })
 
 with tf.Session() as sess:
   sess.run(tf.initialize_all_variables())
