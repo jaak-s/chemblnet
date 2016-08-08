@@ -9,10 +9,19 @@ def gammaPrior(alpha, beta, n, m):
 
 class NormalGammaUni:
     def __init__(self, name, shape, initial_var = 4.0, initial_prec_a = 0.1, initial_prec_b = 0.1):
-        self.mean   = tf.get_variable(name=name + ".mean", shape=shape, initializer=tf.contrib.layers.xavier_initializer())
-        self.var    = tf.Variable(initial_var * np.ones(shape),      name = name + ".var")
-        self.prec_a = tf.Variable(initial_prec_a * np.ones(shape[-1]), name = name + ".prec_a")
-        self.prec_b = tf.Variable(initial_prec_b * np.ones(shape[-1]), name = name + ".prec_b")
+        self.mean   = tf.get_variable(name=name + ".mean", shape=shape, initializer=tf.contrib.layers.xavier_initializer(), dtype = tf.float32)
+        self.var    = tf.Variable(initial_var * np.ones(shape),      name = name + ".var", dtype = tf.float32)
+        self.prec_a = tf.Variable(initial_prec_a * np.ones(shape[-1]), name = name + ".prec_a", dtype = tf.float32)
+        self.prec_b = tf.Variable(initial_prec_b * np.ones(shape[-1]), name = name + ".prec_b", dtype = tf.float32)
+        self.prec   = tf.div(self.prec_a, self.prec_b)
+        self.shape  = shape
 
     def prec_negdiv(self, n, m):
         return gammaPrior(self.prec_a, self.prec_b, n, m)
+
+    ## outputs E_q[ log N( x | 0, prec^-1) ] + Entropy(q(x))
+    ## where x is the normally distributed variable
+    def normal_negdiv(self):
+        regul = tf.mul(self.prec, tf.reduce_sum(tf.square(self.mean), 0) + tf.reduce_sum(self.var, 0))
+
+        return - tf.reduce_sum(regul) / 2.0 + self.shape[0] / 2.0 * tf.reduce_sum(tf.digamma(self.prec_a) - tf.log(self.prec_b)) + tf.reduce_sum(tf.log(self.var)) / 2.0
