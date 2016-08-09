@@ -25,7 +25,14 @@ class NormalGammaUni:
     ## where x is the normally distributed variable
     def normal_div(self):
         regul = tf.mul(self.prec, tf.reduce_sum(tf.square(self.mean), 0) + tf.reduce_sum(self.var, 0))
+        return (tf.reduce_sum(regul) / 2.0
+                - self.shape[0] / 2.0 * tf.reduce_sum(tf.digamma(self.prec_a) - tf.log(self.prec_b))
+                - tf.reduce_sum(tf.log(self.var)) / 2.0
+               )
 
+    def normal_div_partial(self, pmean, pvar, n):
+        prop  = self.shape[0] / float(n)
+        regul = prop * tf.mul(self.prec, tf.reduce_sum(tf.square(pmean), 0) + tf.reduce_sum(pvar, 0))
         return (tf.reduce_sum(regul) / 2.0
                 - self.shape[0] / 2.0 * tf.reduce_sum(tf.digamma(self.prec_a) - tf.log(self.prec_b))
                 - tf.reduce_sum(tf.log(self.var)) / 2.0
