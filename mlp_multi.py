@@ -42,6 +42,7 @@ learning_rate = tf.placeholder(tf.float32)
 ## model setup
 sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 h1         = tf.nn.elu(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1)
+#h1         = tf.tanh(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1)
 
 h1e        = tf.nn.embedding_lookup(h1, y_idx_comp)
 W2e        = tf.nn.embedding_lookup(W2, y_idx_prot)
