@@ -37,9 +37,10 @@ x_idx_comp = tf.placeholder(tf.int64) ## true compound indices
 tb_ratio = tf.placeholder(tf.float32)
 
 ## model
-beta = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size])
-Z    = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size])
-V    = vb.NormalGammaUni("V",    shape = [Nprot, h1_size])
+beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_var = 0.01)
+Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_var = 1.0)
+V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_var = 1.0)
+global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
 
 ## expected data log likelihood
 sp_ids  = tf.SparseTensor(x_indices, x_ids_val, x_shape)
@@ -51,7 +52,7 @@ h1_b    = tf.nn.embedding_lookup(h1, y_idx_comp)
 Vmean_b = tf.nn.embedding_lookup(V.mean, y_idx_prot)
 y_pred  = tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2])
 #y_pred = tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
-y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
+y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - global_mean - y_pred))
 
 ## variance
 Zvar_b  = tf.nn.embedding_lookup(Z.var, x_idx_comp)
@@ -59,9 +60,9 @@ h1var   = tf.nn.embedding_lookup_sparse(beta.var, sp_ids, None, combiner = "sum"
 h1var_b = tf.nn.embedding_lookup(h1var, y_idx_comp)
 Vvar_b  = tf.nn.embedding_lookup(V.var, y_idx_prot)
 
-E_ysq   = tf.add(h1var_b, tf.square(h1_b))
-y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_ysq, Vvar_b, adj_y=True), [1, 2]))
-y_var2  = Y_prec / 2.0 * tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2])
+E_usq   = tf.add(h1var_b, tf.square(h1_b))
+y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2]))
+y_var2  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2]))
 
 L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
 
@@ -82,9 +83,22 @@ def select_y(X, row_idx):
     indices[ Xtmp.indptr[i] : Xtmp.indptr[i+1], 0 ] = i
   return indices, [0, 0], Xtmp.indices.astype(np.int64, copy=False).reshape(-1, 1), Xtmp.data.astype(np.float32, copy=False)
 
-#Xi, Xs, Xv = select_rows(X, np.arange(X.shape[0]))
-X_ids      = np.arange(2)
-Xi, Xs, Xv = select_rows(X, X_ids)
-Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest.shape[0]))
+#X_ids      = np.arange(X.shape[0])
+## debugging
+rIdx = np.random.permutation(Ytrain.shape[0])
+idx  = rIdx[10 : 12]
 
+bx_indices, bx_shape, bx_ids_val           = select_rows(X, idx)
+by_idx_comp, by_shape, by_idx_prot, by_val = select_y(Ytrain, idx)
+
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
+sess.run(y_pred, feed_dict={x_indices:  bx_indices,
+                            x_shape:    bx_shape,
+                            x_ids_val:  bx_ids_val,
+                            x_idx_comp: idx,
+                            y_idx_comp: by_idx_comp,
+                            y_idx_prot: by_idx_prot,
+                            y_val:      by_val
+                            })
 
