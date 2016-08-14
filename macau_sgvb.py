@@ -21,7 +21,7 @@ Y_prec      = 5.0
 h1_size     = 32
 
 batch_size  = 512
-lrate0      = 1e-5
+lrate0      = 4e-3
 lrate_decay = 1.0 #0.986
 
 ## inputs
@@ -33,10 +33,10 @@ x_shape    = tf.placeholder(tf.int64)
 x_ids_val  = tf.placeholder(tf.int64)
 x_idx_comp = tf.placeholder(tf.int64) ## true compound indices
 
-learning_rate = tf.placeholder(tf.float32)
+learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 
 ## ratio of total training points to mini-batch training points, for the current batch
-tb_ratio = tf.placeholder(tf.float32)
+tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
 
 ## model
 beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_var = 0.01)
@@ -97,9 +97,13 @@ rIdx = np.random.permutation(Ytrain.shape[0])
 #bx_indices, bx_shape, bx_ids_val           = select_rows(X, idx)
 #by_idx_comp, by_shape, by_idx_prot, by_val = select_y(Ytrain, idx)
 
+# ---------- test data ------------- #
 Xi, Xs, Xv = select_rows(X, np.arange(X.shape[0]))
 Xindices   = np.arange(X.shape[0])
 Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest.shape[0]))
+
+# ------- train data (all) --------- #
+Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytrain.shape[0]))
 
 # sess = tf.Session()
 # sess.run(tf.initialize_all_variables())
@@ -125,7 +129,7 @@ Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest
 with tf.Session() as sess:
   sess.run(tf.initialize_all_variables())
 
-  for epoch in range(300):
+  for epoch in range(2):
     lrate = lrate0 * lrate_decay**epoch
     rIdx = np.random.permutation(Ytrain.shape[0])
 
@@ -144,6 +148,10 @@ with tf.Session() as sess:
                                     y_idx_prot: by_idx_prot,
                                     y_val:      by_val,
                                     x_idx_comp: idx,
+                                    tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
+                                    beta.prec:  5.0 * np.ones( beta.shape[-1] ),
+                                    V.prec:     5.0 * np.ones( V.shape[-1] ),
+                                    Z.prec:     5.0 * np.ones( Z.shape[-1] ),
                                     learning_rate: lrate})
 
     ## epoch's Ytest error
@@ -156,7 +164,24 @@ with tf.Session() as sess:
                                        y_idx_prot: Yte_idx_prot,
                                        y_val:      Yte_val,
                                        x_idx_comp: Xindices})
-      #W1_l2 = sess.run(tf.nn.l2_loss(W1))
+#beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
+      Ltr = sess.run([L_D, beta.prec_div(), beta.normal_div()],
+                     feed_dict={x_indices:  Xi,
+                               x_shape:    Xs,
+                               x_ids_val:  Xv,
+                               x_idx_comp: Xindices,
+                               y_idx_comp: Ytr_idx_comp,
+                               y_idx_prot: Ytr_idx_prot,
+                               y_val:      Ytr_val,
+                               tb_ratio:   1.0,
+                               beta.prec:  5.0 * np.ones( beta.shape[-1] ),
+                               V.prec:     5.0 * np.ones( V.shape[-1] ),
+                               Z.prec:     5.0 * np.ones( Z.shape[-1] )
+                               })
+      beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
+      beta_var_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
       #W2_l2 = sess.run(tf.nn.l2_loss(W2))
       test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
-      print("%3d. RMSE(test) = %.5f" % (epoch, test_rmse) )
+      print("%3d. RMSE(test) = %.5f  L(train)=[%.2e, %.2e, %.2e]  L2(beta) = %.2e  min(beta.var) = %.2e" % 
+              (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_l2, beta_var_min) )
+
