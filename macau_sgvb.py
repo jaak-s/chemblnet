@@ -21,7 +21,7 @@ Y_prec      = 5.0
 h1_size     = 32
 
 batch_size  = 512
-lrate0      = 4e-3
+lrate0      = 1e-2
 lrate_decay = 1.0 #0.986
 
 ## inputs
@@ -39,9 +39,9 @@ learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
 
 ## model
-beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_var = 0.01)
-Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_var = 1.0)
-V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_var = 1.0)
+beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.1)
+Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_stdev = 1.0)
+V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_stdev = 1.0)
 global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
 
 ## expected data log likelihood
@@ -57,10 +57,11 @@ y_pred  = global_mean + tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [
 y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
 
 ## variance
-Zvar_b  = tf.nn.embedding_lookup(Z.var, x_idx_comp)
-h1var   = tf.nn.embedding_lookup_sparse(beta.var, sp_ids, None, combiner = "sum") + Zvar_b
+Zvar_b  = tf.exp(tf.nn.embedding_lookup(Z.logvar, x_idx_comp))
+h1var   = vb.embedding_lookup_sparse_sumexp(beta.logvar, sp_ids) + Zvar_b
+#h1var   = tf.nn.embedding_lookup_sparse(beta.var, sp_ids, None, combiner = "sum") + Zvar_b
 h1var_b = tf.nn.embedding_lookup(h1var, y_idx_comp)
-Vvar_b  = tf.nn.embedding_lookup(V.var, y_idx_prot)
+Vvar_b  = tf.exp(tf.nn.embedding_lookup(V.logvar, y_idx_prot))
 
 E_usq   = tf.add(h1var_b, tf.square(h1_b))
 y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2]))
@@ -129,7 +130,7 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 with tf.Session() as sess:
   sess.run(tf.initialize_all_variables())
 
-  for epoch in range(2):
+  for epoch in range(300):
     lrate = lrate0 * lrate_decay**epoch
     rIdx = np.random.permutation(Ytrain.shape[0])
 
