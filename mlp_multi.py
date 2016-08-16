@@ -26,6 +26,7 @@ W1 = tf.Variable(tf.truncated_normal([Nfeat, h1_size], stddev=1/500.0))
 b1 = tf.Variable(tf.zeros([h1_size]))
 W2 = tf.Variable(tf.truncated_normal([Nprot, h1_size], stddev=1/50.0))
 b2 = tf.Variable(tf.zeros([Nprot]))
+b2g = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
 
 ## inputs
 y_val      = tf.placeholder(tf.float32)
@@ -46,7 +47,7 @@ h1         = tf.nn.elu(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner 
 
 h1e        = tf.nn.embedding_lookup(h1, y_idx_comp)
 W2e        = tf.nn.embedding_lookup(W2, y_idx_prot)
-y_pred     = tf.squeeze(tf.batch_matmul(h1e, W2e, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
+y_pred     = tf.squeeze(tf.batch_matmul(h1e, W2e, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1])) + b2g
 
 y_loss     = tf.reduce_sum(tf.square(y_val - y_pred))
 l2_reg     = lambda_reg * tf.nn.l2_loss(W1) + lambda_reg * tf.nn.l2_loss(W2)
