@@ -21,7 +21,7 @@ Y_prec      = 5.0
 h1_size     = 32
 
 batch_size  = 512
-lrate0      = 1e-2
+lrate0      = 1e-1
 lrate_decay = 1.0 #0.986
 
 ## inputs
