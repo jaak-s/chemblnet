@@ -21,8 +21,6 @@ Y_prec      = 5.0
 h1_size     = 32
 
 batch_size  = 512
-lrate0      = 1e-1
-lrate_decay = 1.0 #0.986
 
 ## inputs
 y_val      = tf.placeholder(tf.float32)
@@ -71,7 +69,8 @@ L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
 L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
 loss    = L_D + L_prior
 
-train_op = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
+train_op = tf.train.AdagradOptimizer(1e-1).minimize(loss)
+#train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
 
 ######################################################
 
@@ -131,7 +130,6 @@ with tf.Session() as sess:
   sess.run(tf.initialize_all_variables())
 
   for epoch in range(300):
-    lrate = lrate0 * lrate_decay**epoch
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -152,8 +150,8 @@ with tf.Session() as sess:
                                     tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
                                     beta.prec:  5.0 * np.ones( beta.shape[-1] ),
                                     V.prec:     5.0 * np.ones( V.shape[-1] ),
-                                    Z.prec:     5.0 * np.ones( Z.shape[-1] ),
-                                    learning_rate: lrate})
+                                    Z.prec:     5.0 * np.ones( Z.shape[-1] )
+                                    })
 
     ## epoch's Ytest error
     if epoch % 1 == 0:
@@ -179,10 +177,13 @@ with tf.Session() as sess:
                                V.prec:     5.0 * np.ones( V.shape[-1] ),
                                Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                })
-      beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
-      beta_var_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
+      beta_l2       = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
+      beta_var_min  = np.sqrt(sess.run(tf.reduce_min(beta.var)))
+      beta_prec_min = np.sqrt(sess.run(tf.reduce_min(beta.prec)))
       #W2_l2 = sess.run(tf.nn.l2_loss(W2))
       test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
-      print("%3d. RMSE(test) = %.5f  L(train)=[%.2e, %.2e, %.2e]  L2(beta) = %.2e  min(beta.var) = %.2e" % 
-              (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_l2, beta_var_min) )
+      if epoch % 20 == 0:
+          print("Epoch\tRMSE(test)\tL(train)\tbeta divergence\t\tmin(beta.var)\tmin(beta.prec)")
+      print("%3d.\t%.5f\t\t%.2e\t[%.2e, %.2e]\t%.2e\t%.2e" %
+            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_var_min, beta_prec_min))
 
