@@ -8,7 +8,7 @@ def gammaPrior(alpha, beta, n, m):
   return - (alpha - n)*tf.digamma(alpha) + tf.lgamma(alpha) - scipy.special.gammaln(n) - n * (tf.log(beta) - np.log(m)) - alpha * (m / beta - 1.0)
 
 class NormalGammaUni:
-    def __init__(self, name, shape, initial_stdev = 2.0, initial_prec_a = 0.1, initial_prec_b = 0.1, a0 = 0.1, b0 = 0.1):
+    def __init__(self, name, shape, initial_stdev = 2.0, initial_prec_a = 5.0, initial_prec_b = 1.0, a0 = 1.0, b0 = 1.0):
         with tf.variable_scope(name) as scope:
             self.mean   = tf.get_variable(name="mean", shape=shape, initializer=tf.contrib.layers.xavier_initializer(), dtype = tf.float32)
             #self.var    = tf.Variable(initial_var * np.ones(shape),      name = name + ".var", dtype = tf.float32)

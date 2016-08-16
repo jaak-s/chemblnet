@@ -148,7 +148,7 @@ with tf.Session() as sess:
                                     y_val:      by_val,
                                     x_idx_comp: idx,
                                     tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
-                                    beta.prec:  5.0 * np.ones( beta.shape[-1] ),
+                                    #beta.prec:  5.0 * np.ones( beta.shape[-1] ),
                                     V.prec:     5.0 * np.ones( V.shape[-1] ),
                                     Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                     })
@@ -173,17 +173,20 @@ with tf.Session() as sess:
                                y_idx_prot: Ytr_idx_prot,
                                y_val:      Ytr_val,
                                tb_ratio:   1.0,
-                               beta.prec:  5.0 * np.ones( beta.shape[-1] ),
+                               #beta.prec:  5.0 * np.ones( beta.shape[-1] ),
                                V.prec:     5.0 * np.ones( V.shape[-1] ),
                                Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                })
-      beta_l2       = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
-      beta_var_min  = np.sqrt(sess.run(tf.reduce_min(beta.var)))
-      beta_prec_min = np.sqrt(sess.run(tf.reduce_min(beta.prec)))
+      beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
+      beta_var_std = np.sqrt(sess.run(tf.reduce_min(beta.var)))
+      beta_prec    = sess.run(beta.prec)
+      V_prec       = sess.run(V.prec)
+      Z_prec       = sess.run(Z.prec)
       #W2_l2 = sess.run(tf.nn.l2_loss(W2))
       test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
       if epoch % 20 == 0:
-          print("Epoch\tRMSE(test)\tL(train)\tbeta divergence\t\tmin(beta.var)\tmin(beta.prec)")
-      print("%3d.\t%.5f\t\t%.2e\t[%.2e, %.2e]\t%.2e\t%.2e" %
-            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_var_min, beta_prec_min))
+          print("Epoch\tRMSE(test)\tL(train)\tbeta divergence\t\tmin(beta.var)\trange(beta.prec)")
+      print("%3d.\t%.5f\t\t%.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]" %
+            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_std_min, beta_prec.min(), beta_prec.max()))
+
 
