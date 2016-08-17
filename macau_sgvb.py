@@ -8,7 +8,7 @@ label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 # 109, 167, 168, 204, 214, 215
 
-Ytrain, Ytest = cd.make_train_test(label, 0.2)
+Ytrain, Ytest = cd.make_train_test(label, 0.2, seed = 123456)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 Nfeat  = X.shape[1]
@@ -51,7 +51,7 @@ h1      = tf.nn.embedding_lookup_sparse(beta.mean, sp_ids, None, combiner = "sum
 h1_b    = tf.nn.embedding_lookup(h1, y_idx_comp)
 Vmean_b = tf.nn.embedding_lookup(V.mean, y_idx_prot)
 y_pred  = global_mean + tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2])
-#y_pred = tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
+#y_pred = tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(Vbias, tf.squeeze(y_idx_prot, [1]))
 y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
 
 ## variance

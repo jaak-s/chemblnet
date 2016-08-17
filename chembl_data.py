@@ -49,7 +49,7 @@ def make_target_col(data, label, col, ratio):
 
   return Xtr, Ytr, Xte, Yte
 
-def make_train_test(Y, ntest):
+def make_train_test(Y, ntest, seed = None):
     if type(Y) not in [sp.sparse.coo.coo_matrix, sp.sparse.csr.csr_matrix, sp.sparse.csc.csc_matrix]:
         raise ValueError("Unsupported Y type: %s" + type(Y))
     if not isinstance(ntest, numbers.Real) or ntest < 0:
@@ -57,6 +57,8 @@ def make_train_test(Y, ntest):
     Y = Y.tocoo(copy = False)
     if ntest < 1:
         ntest = Y.nnz * ntest
+    if seed is not None:
+        np.random.seed(seed)
     ntest = int(round(ntest))
     rperm = np.random.permutation(Y.nnz)
     train = rperm[ntest:]
