@@ -37,7 +37,7 @@ learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
 
 ## model
-beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.1)
+beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.05)
 Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_stdev = 1.0)
 V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_stdev = 1.0)
 global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
@@ -126,7 +126,9 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 #                          tb_ratio:   Ytrain.nnz / float(by_idx_comp.shape[0])
 #                          })
 
-with tf.Session() as sess:
+#with tf.Session() as sess:
+sess = tf.Session()
+if True:
   sess.run(tf.initialize_all_variables())
 
   for epoch in range(300):
@@ -178,7 +180,7 @@ with tf.Session() as sess:
                                Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                })
       beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
-      beta_var_std = np.sqrt(sess.run(tf.reduce_min(beta.var)))
+      beta_std_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
       beta_prec    = sess.run(beta.prec)
       V_prec       = sess.run(V.prec)
       Z_prec       = sess.run(Z.prec)
