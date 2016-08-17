@@ -69,8 +69,9 @@ L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
 L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
 loss    = L_D + L_prior
 
-train_op = tf.train.AdagradOptimizer(1e-1).minimize(loss)
+#train_op = tf.train.AdagradOptimizer(1e-1).minimize(loss)
 #train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+train_op = tf.train.MomentumOptimizer(1e-7, 0.90).minimize(loss)
 
 ######################################################
 
@@ -131,7 +132,7 @@ sess = tf.Session()
 if True:
   sess.run(tf.initialize_all_variables())
 
-  for epoch in range(300):
+  for epoch in range(3000):
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -166,7 +167,7 @@ if True:
                                        y_val:      Yte_val,
                                        x_idx_comp: Xindices})
 #beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
-      Ltr = sess.run([L_D, beta.prec_div(), beta.normal_div()],
+      Ltr = sess.run([L_D, loss, beta.prec_div(), beta.normal_div()],
                      feed_dict={x_indices:  Xi,
                                x_shape:    Xs,
                                x_ids_val:  Xv,
@@ -187,8 +188,8 @@ if True:
       #W2_l2 = sess.run(tf.nn.l2_loss(W2))
       test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
       if epoch % 20 == 0:
-          print("Epoch\tRMSE(test)\tL(train)\tbeta divergence\t\tmin(beta.var)\trange(beta.prec)")
-      print("%3d.\t%.5f\t\t%.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]" %
-            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], beta_std_min, beta_prec.min(), beta_prec.max()))
+          print("Epoch\tRMSE(test)\tL_D,loss(train)\t\tbeta divergence\t\tmin(beta.std)\trange(beta.prec)")
+      print("%3d.\t%.5f\t\t%.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]" %
+            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max()))
 
 
