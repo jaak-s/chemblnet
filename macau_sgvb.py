@@ -39,7 +39,7 @@ learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
 
 ## model
-beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.1, fixed_prec = True)
+beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.1, fixed_prec = False)
 Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_stdev = 1.0, fixed_prec = True)
 V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_stdev = 1.0, fixed_prec = True)
 global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
@@ -134,7 +134,7 @@ sess = tf.Session()
 if True:
   sess.run(tf.initialize_all_variables())
 
-  for epoch in range(3000):
+  for epoch in range(2000):
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -186,7 +186,7 @@ if True:
       test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
       if epoch % 20 == 0:
           print("Epoch\tRMSE(test)\tL_D,loss(train)\t\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
-      print("%3d.\t%.5f\t\t%.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]\t%.2e" %
+      print("%3d.\t%.5f\t\t%.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]\t%.2f" %
             (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max(), V_l2))
       if extra_info:
           #print("beta: [%s]" % beta.summarize(sess))
