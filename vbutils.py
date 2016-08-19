@@ -38,12 +38,13 @@ class NormalGammaUni:
                )
 
     def normal_div_partial(self, pmean, plogvar, n):
-        prop  = self.shape[0] / float(n)
+        prop  = self.shape[0] / n
         regul = prop * tf.mul(self.prec, tf.reduce_sum(tf.square(pmean), 0) + tf.reduce_sum(tf.exp(plogvar), 0))
         return (tf.reduce_sum(regul) / 2.0
                 - self.shape[0] / 2.0 * tf.reduce_sum(tf.digamma(self.prec_a) - tf.log(self.prec_b))
-                - tf.reduce_sum(plogvar) / 2.0
+                - prop * tf.reduce_sum(plogvar) / 2.0
                )
+
     def summarize(self, sess):
         mean_info = sess.run([tf.sqrt(tf.nn.l2_loss(self.mean)), tf.reduce_min(self.mean), tf.reduce_max(self.mean)])
         var_info  = sess.run([tf.sqrt(tf.nn.l2_loss(self.var)), tf.reduce_min(self.var), tf.reduce_max(self.var)])

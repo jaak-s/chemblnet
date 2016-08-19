@@ -132,6 +132,10 @@ with tf.Session() as sess:
     if decay_cnt > 2:
       lrate = lrate * lrate_decay
       decay_cnt = 0
+      best_train_sse = train_sse
+      if lrate <= 1e-6:
+          print("Converged, stopping at learning rate of 1e-6.")
+          break
 
     ## mini-batch loop
     for start in np.arange(0, Ytrain.shape[0], batch_size):

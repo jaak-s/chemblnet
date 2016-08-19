@@ -20,7 +20,8 @@ print("St. deviation:   %f" % np.std( Ytest.data ))
 Y_prec      = 5.0
 h1_size     = 32
 
-batch_size  = 512
+batch_size  = 128
+lrate       = 1e-1
 
 extra_info  = False
 
@@ -37,12 +38,13 @@ learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 
 ## ratio of total training points to mini-batch training points, for the current batch
 tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
+bsize    = tf.placeholder(tf.float32, name = "bsize")
 
 ## model
 beta  = vb.NormalGammaUni("beta", shape = [Nfeat, h1_size], initial_stdev = 0.1, fixed_prec = False)
 Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_stdev = 1.0, fixed_prec = True)
 V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_stdev = 1.0, fixed_prec = True)
-global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
+global_mean = tf.constant(Ytrain.data.mean(), dtype=tf.float32)
 
 ## expected data log likelihood
 sp_ids  = tf.SparseTensor(x_indices, x_ids_val, x_shape)
@@ -53,13 +55,11 @@ h1      = tf.nn.embedding_lookup_sparse(beta.mean, sp_ids, None, combiner = "sum
 h1_b    = tf.nn.embedding_lookup(h1, y_idx_comp)
 Vmean_b = tf.nn.embedding_lookup(V.mean, y_idx_prot)
 y_pred  = global_mean + tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2])
-#y_pred = tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2]) + tf.nn.embedding_lookup(Vbias, tf.squeeze(y_idx_prot, [1]))
 y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
 
 ## variance
 Zvar_b  = tf.exp(tf.nn.embedding_lookup(Z.logvar, x_idx_comp))
 h1var   = vb.embedding_lookup_sparse_sumexp(beta.logvar, sp_ids) + Zvar_b
-#h1var   = tf.nn.embedding_lookup_sparse(beta.var, sp_ids, None, combiner = "sum") + Zvar_b
 h1var_b = tf.nn.embedding_lookup(h1var, y_idx_comp)
 Vvar_b  = tf.exp(tf.nn.embedding_lookup(V.logvar, y_idx_prot))
 
@@ -68,10 +68,10 @@ y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b,
 y_var2  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2]))
 
 L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
-L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
+L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div_partial(Zmean_b, Zvar_b, bsize) + V.normal_div()
 loss    = L_D + L_prior
 
-train_op = tf.train.AdagradOptimizer(1e-1).minimize(loss)
+train_op = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
 #train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
 #train_op = tf.train.MomentumOptimizer(1e-7, 0.90).minimize(loss)
 
@@ -152,7 +152,9 @@ if True:
                                     y_idx_prot: by_idx_prot,
                                     y_val:      by_val,
                                     x_idx_comp: idx,
-                                    tb_ratio:   Ytrain.nnz / float(by_val.shape[0])
+                                    tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
+                                    learning_rate: lrate,
+                                    bsize:      batch_size
                                     })
 
     ## epoch's Ytest error
@@ -165,7 +167,16 @@ if True:
                                        y_idx_prot: Yte_idx_prot,
                                        y_val:      Yte_val,
                                        x_idx_comp: Xindices})
-#beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
+
+      train_sse = sess.run(tf.reduce_sum(tf.square(y_val - y_pred)),
+                          feed_dict = {x_indices:  Xi,
+                                       x_shape:    Xs,
+                                       x_ids_val:  Xv,
+                                       y_idx_comp: Ytr_idx_comp,
+                                       y_idx_prot: Ytr_idx_prot,
+                                       y_val:      Ytr_val,
+                                       x_idx_comp: Xindices})
+
       Ltr = sess.run([L_D, loss, beta.prec_div(), beta.normal_div()],
                      feed_dict={x_indices:  Xi,
                                x_shape:    Xs,
@@ -174,7 +185,8 @@ if True:
                                y_idx_comp: Ytr_idx_comp,
                                y_idx_prot: Ytr_idx_prot,
                                y_val:      Ytr_val,
-                               tb_ratio:   1.0
+                               tb_ratio:   1.0,
+                               bsize:      Ytrain.shape[0]
                                })
       beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
       beta_std_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
@@ -183,11 +195,14 @@ if True:
       V_l2         = np.sqrt(sess.run(tf.nn.l2_loss(V.mean)))
       Z_prec       = sess.run(Z.prec)
       #W2_l2 = sess.run(tf.nn.l2_loss(W2))
-      test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
+      test_rmse  = np.sqrt( test_sse  / Yte_val.shape[0])
+      train_rmse = np.sqrt( train_sse / Ytr_val.shape[0])
+
       if epoch % 20 == 0:
-          print("Epoch\tRMSE(test)\tL_D,loss(train)\t\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
-      print("%3d.\t%.5f\t\t%.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]\t%.2f" %
-            (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max(), V_l2))
+          print("Epoch\tRMSE(te, tr)\t  L_D,loss(train)\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
+
+      print("%3d.\t%.5f, %.5f  %.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]\t%.2f" %
+            (epoch, test_rmse, train_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max(), V_l2))
       if extra_info:
           #print("beta: [%s]" % beta.summarize(sess))
           #print("Z:    [%s]" % Z.summarize(sess))
