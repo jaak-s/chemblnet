@@ -20,7 +20,7 @@ print("St. deviation:   %f" % np.std( Ytest.data ))
 Y_prec      = 5.0
 h1_size     = 32
 
-batch_size  = 128
+batch_size  = 256
 lrate       = 1e-1
 lrate_decay = 0.1
 
@@ -208,8 +208,8 @@ if True:
       else:
         nobest_count += 1
 
-      if nobest_count > 2:
-        print("Decreasing learning rate from %.f to %f." % (lrate, lrate * lrate_decay))
+      if nobest_count > 25:
+        print("Decreasing learning rate from %f to %f." % (lrate, lrate * lrate_decay))
         lrate = lrate * lrate_decay
         nobest_count = 0
         best_train_rmse = train_rmse
