@@ -208,7 +208,7 @@ if True:
       else:
         nobest_count += 1
 
-      if nobest_count > 25:
+      if nobest_count > 5:
         print("Decreasing learning rate from %f to %f." % (lrate, lrate * lrate_decay))
         lrate = lrate * lrate_decay
         nobest_count = 0
