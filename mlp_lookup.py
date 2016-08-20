@@ -102,8 +102,8 @@ y_pred     = l2 + b2g
 b_ratio = np.float32(Ncmpd) / np.float32(batch_size)
 
 y_loss     = tf.reduce_sum(tf.square(y_val - y_pred))
-l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * b_ratio * tf.nn.l2_loss(Ze)
-#l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * tf.nn.l2_loss(Z)
+#l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * b_ratio * tf.nn.l2_loss(Ze)
+l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * tf.nn.l2_loss(Z)
 loss       = l2_reg + y_loss/np.float32(batch_size)
 
 # Use the adam optimizer
