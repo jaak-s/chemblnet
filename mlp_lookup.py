@@ -7,7 +7,7 @@ from scipy.sparse import hstack
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 
-Ytrain, Ytest = cd.make_train_test(label, 0.2)
+Ytrain, Ytest = cd.make_train_test(label, 0.2, seed = 123456)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 
@@ -20,9 +20,10 @@ print("St. deviation:   %f" % np.std( Ytest.data ))
 batch_size = 100 #Ncmpd #np.ceil(Ncmpd/10)
 h_size     = 100
 reg        = 0.001
-zreg       = 0.002
+zreg       = 0.001
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
+lrate_min  = 3e-5
 epsilon    = 1e-5
 
 ## variables for the model
@@ -134,11 +135,11 @@ with tf.Session() as sess:
   best_train_sse = np.inf
   decay_cnt = 0
 
-  for epoch in range(1000):
+  for epoch in range(200):
     rIdx = np.random.permutation(Ytrain.shape[0])
     
     if decay_cnt > 2:
-      lrate = lrate * lrate_decay
+      lrate = np.max( [lrate * lrate_decay, lrate_min] )
       decay_cnt = 0
       best_train_sse = train_sse
       if lrate <= 1e-6:
