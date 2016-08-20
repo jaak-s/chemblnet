@@ -23,6 +23,7 @@ h1_size     = 32
 batch_size  = 256
 lrate       = 1e-1
 lrate_decay = 0.1
+lrate_jump  = 1.2
 
 extra_info  = False
 
@@ -132,7 +133,7 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 
 #with tf.Session() as sess:
 best_train_rmse = np.inf
-nobest_count = 0
+decay_count = 0
 
 sess = tf.Session()
 if True:
@@ -204,18 +205,22 @@ if True:
 
       if train_rmse < best_train_rmse:
         best_train_rmse = train_rmse
-        nobest_count = 0
+        decay_count = np.min( (-1, decay_count - 1) )
       else:
-        nobest_count += 1
+        decay_count = np.max( (1, decay_count + 1) )
 
-      if nobest_count > 5:
+      if decay_count > 5:
         print("Decreasing learning rate from %f to %f." % (lrate, lrate * lrate_decay))
         lrate = lrate * lrate_decay
-        nobest_count = 0
+        decay_count = 0
         best_train_rmse = train_rmse
         if lrate <= 1e-6:
           print("Learning reached 1e-6, stopping.")
           break
+      if decay_count <= -3:
+          print("Increasing learning rate from %e to %e." % (lrate, lrate * lrate_jump))
+          lrate = lrate * lrate_jump
+          decay_count = 0
 
       if epoch % 20 == 0:
           print("Epoch\tRMSE(te, tr)\t  L_D,loss(train)\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
