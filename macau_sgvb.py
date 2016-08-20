@@ -131,7 +131,7 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 #                          })
 
 #with tf.Session() as sess:
-best_train_rmse = 1e+6
+best_train_rmse = np.inf
 nobest_count = 0
 
 sess = tf.Session()
