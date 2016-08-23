@@ -103,23 +103,38 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 if False:
   sess = tf.Session()
   sess.run(tf.initialize_all_variables())
+  fd = {y_idx_comp: Yte_idx_comp,
+        y_idx_prot: Yte_idx_prot,
+        y_val:      Yte_val,
+        Z.mean:     Zm,
+        Z.logvar:   np.log(Zv),
+        Z.prec_a:   Zlambda_a,
+        Z.prec_b:   Zlambda_b,
+        V.mean:     Vm,
+        V.logvar:   np.log(Vv),
+        V.prec_a:   Vlambda_a,
+        V.prec_b:   Vlambda_b,
+        tb_ratio:   1.0
+       }
   test_rmse, test_loss, test_L_D = sess.run(
                        [tf.sqrt(tf.reduce_mean(tf.square(y_val - y_pred))),
                         loss,
                         L_D],
-                      feed_dict = {y_idx_comp: Yte_idx_comp,
-                                   y_idx_prot: Yte_idx_prot,
-                                   y_val:      Yte_val,
-                                   Z.mean:     Zm,
-                                   Z.logvar:   np.log(Zv),
-                                   Z.prec_a:   Zlambda_a,
-                                   Z.prec_b:   Zlambda_b,
-                                   V.mean:     Vm,
-                                   V.logvar:   np.log(Vv),
-                                   V.prec_a:   Vlambda_a,
-                                   V.prec_b:   Vlambda_b,
-                                   tb_ratio:   1.0
-                                   })
+                      feed_dict = fd)
+  test_y_split = sess.run([y_loss, y_var1, y_var2], feed_dict = fd)
+  ## train
+  fd_tr = fd.copy()
+  fd_tr[y_idx_comp] = Ytr_idx_comp
+  fd_tr[y_idx_prot] = Ytr_idx_prot
+  fd_tr[y_val]      = Ytr_val
+  train_rmse, train_loss, train_L_D = sess.run(
+                       [tf.sqrt(tf.reduce_mean(tf.square(y_val - y_pred))),
+                        loss,
+                        L_D],
+                      feed_dict = fd_tr)
+  train_y_split = sess.run([y_loss, y_var1, y_var2], feed_dict = fd_tr)
+  train_L_prior = sess.run([Z.prec_div(), V.prec_div(), Z.normal_div(), V.normal_div()], feed_dict=fd_tr)
+
 
 #with tf.Session() as sess:
 sess = tf.Session()
