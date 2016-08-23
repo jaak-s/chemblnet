@@ -1,13 +1,12 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
-from scipy.sparse import hstack
+import chemblnet as cn
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 
-Ytrain, Ytest = cd.make_train_test(label, 0.2)
+Ytrain, Ytest = cn.make_train_test(label, 0.2)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 

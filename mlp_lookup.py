@@ -1,13 +1,20 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
+import chemblnet as cn
 from scipy.sparse import hstack
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--reg",   type=float, help="regularization for layers", default = 0.001)
+parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup table)", default = 0.001)
+parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
+args = parser.parse_args()
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 
-Ytrain, Ytest = cd.make_train_test(label, 0.2, seed = 123456)
+Ytrain, Ytest = cn.make_train_test(label, 0.2, seed = 123456)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 
@@ -15,16 +22,26 @@ Nfeat  = X.shape[1]
 Nprot  = Ytrain.shape[1]
 Ncmpd  = Ytrain.shape[0]
 
-print("St. deviation:   %f" % np.std( Ytest.data ))
 
-batch_size = 100 #Ncmpd #np.ceil(Ncmpd/10)
-h_size     = 100
-reg        = 0.001
-zreg       = 0.001
+batch_size = 100
+h_size     = args.hsize
+reg        = args.reg
+zreg       = args.zreg
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
 epsilon    = 1e-5
+
+print("Num compounds:  %d" % Ncmpd)
+print("Num proteins:   %d" % Nprot)
+print("Num features:   %d" % Nfeat)
+print("St. deviation:  %f" % np.std( Ytest.data ))
+print("-----------------------")
+print("Hidden size:    %d" % h_size)
+print("reg:            %.1e" % reg)
+print("Z-reg:          %.1e" % zreg)
+print("Learning rate:  %.1e" % lrate)
+print("-----------------------")
 
 ## variables for the model
 W1 = tf.Variable(tf.random_uniform([Nfeat, h_size], minval=-1/np.sqrt(Nfeat), maxval=1/np.sqrt(Nfeat)))

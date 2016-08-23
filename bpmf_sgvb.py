@@ -1,7 +1,7 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
+import chemblnet as cn
 import vbutils as vb
 import os
 

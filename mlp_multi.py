@@ -1,13 +1,13 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
+import chemblnet as cn
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
 # 109, 167, 168, 204, 214, 215
 
-Ytrain, Ytest = cd.make_train_test(label, 0.2)
+Ytrain, Ytest = cn.make_train_test(label, 0.2)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 Nfeat  = X.shape[1]

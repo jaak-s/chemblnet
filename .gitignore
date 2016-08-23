@@ -1,3 +1,9 @@
 *.swp
 *.mm
 *.pyc
+
+# setuptools distribution folder
+/dist(
+
+# python egg metadata
+/*.egg-info

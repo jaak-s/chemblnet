@@ -1,13 +1,13 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
+import chemblnet as cn
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 data  = scipy.io.mmread("chembl-IC50-compound-feat.mm")
 # 109, 167, 168, 204, 214, 215
 
-Xtr, Ytr, Xte, Yte = cd.make_target_col(data, label, 168, 0.2)
+Xtr, Ytr, Xte, Yte = cn.make_target_col(data, label, 168, 0.2)
 Nfeat = Xtr.shape[1]
 
 print("Data loaded.\nNtrain = %d\nNtest = %d" % (Ytr.shape[0], Yte.shape[0]))
@@ -37,9 +37,9 @@ loss       = l2_reg + y_loss
 train_op   = tf.train.AdamOptimizer(3e-3).minimize(loss)
 
 # test set
-Xte_indices, Xte_shape, Xte_ids_val = cd.csr2indices(Xte)
+Xte_indices, Xte_shape, Xte_ids_val = cn.csr2indices(Xte)
 Yte = Yte.reshape(-1, 1)
-Xtr_indices, Xtr_shape, Xtr_ids_val = cd.csr2indices(Xtr)
+Xtr_indices, Xtr_shape, Xtr_ids_val = cn.csr2indices(Xtr)
 Ytr2 = Ytr.reshape(-1, 1)
 
 batch_size = 32
@@ -55,7 +55,7 @@ with tf.Session() as sess:
       if start + batch_size > Ytr.shape[0]:
         break
       idx = rIdx[start : start + batch_size]
-      indices, shape, ids_val = cd.csr2indices(Xtr[idx,:])
+      indices, shape, ids_val = cn.csr2indices(Xtr[idx,:])
       y_batch = Ytr[idx].reshape(-1, 1)
       sess.run(train_op, feed_dict={sp_indices: indices, sp_shape: shape, sp_ids_val: ids_val, y: y_batch, W_reg: 0.1})
 
