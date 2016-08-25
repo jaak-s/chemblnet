@@ -9,10 +9,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--reg",   type=float, help="regularization for layers", default = 0.001)
 parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup table)", default = 0.001)
 parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
+parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
+parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
 args = parser.parse_args()
 
-label = scipy.io.mmread("chembl-IC50-346targets.mm")
-X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
+label = scipy.io.mmread(args.y)
+X     = scipy.io.mmread(args.side).tocsr()
 
 Ytrain, Ytest = cn.make_train_test(label, 0.2, seed = 123456)
 Ytrain = Ytrain.tocsr()
@@ -32,6 +34,8 @@ lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
 epsilon    = 1e-5
 
+print("Matrix:         %s" % args.y)
+print("Side info:      %s" % args.side)
 print("Num compounds:  %d" % Ncmpd)
 print("Num proteins:   %d" % Nprot)
 print("Num features:   %d" % Nfeat)
