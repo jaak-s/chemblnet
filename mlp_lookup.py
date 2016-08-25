@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--reg",   type=float, help="regularization for layers", default = 0.001)
 parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup table)", default = 0.001)
 parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
+parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
 args = parser.parse_args()
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
@@ -22,7 +23,6 @@ Nfeat  = X.shape[1]
 Nprot  = Ytrain.shape[1]
 Ncmpd  = Ytrain.shape[0]
 
-
 batch_size = 100
 h_size     = args.hsize
 reg        = args.reg
@@ -31,6 +31,7 @@ lrate      = 0.001
 lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
 epsilon    = 1e-5
+non_linear_z = args.non_linear_z
 
 print("Num compounds:  %d" % Ncmpd)
 print("Num proteins:   %d" % Nprot)
@@ -41,6 +42,7 @@ print("Hidden size:    %d" % h_size)
 print("reg:            %.1e" % reg)
 print("Z-reg:          %.1e" % zreg)
 print("Learning rate:  %.1e" % lrate)
+print("Z non-linear:   %r"   % non_linear_z)
 print("-----------------------")
 
 ## variables for the model
@@ -99,7 +101,10 @@ sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 # h1         = tf.nn.relu6(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1)
 l1         = tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1
 Ze         = tf.nn.embedding_lookup(Z, z_idx)
-h1         = tf.tanh(l1) + Ze
+if non_linear_z:
+    h1     = tf.tanh(l1 + Ze)
+else:
+    h1     = tf.tanh(l1) + Ze
 
 ## batch normalization doesn't work that well in comparison to Torch 
 # h1         = batch_norm_wrapper(l1, tr_ind)
