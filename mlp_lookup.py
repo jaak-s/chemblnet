@@ -1,9 +1,3 @@
-import tensorflow as tf
-import scipy.io
-import numpy as np
-import chemblnet as cn
-from scipy.sparse import hstack
-
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--reg",   type=float, help="regularization for layers", default = 0.001)
@@ -14,6 +8,12 @@ parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50
 parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
 
 args = parser.parse_args()
+
+import tensorflow as tf
+import scipy.io
+import numpy as np
+import chemblnet as cn
+from scipy.sparse import hstack
 
 label = scipy.io.mmread(args.y)
 X     = scipy.io.mmread(args.side).tocsr()
