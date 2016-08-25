@@ -6,6 +6,7 @@ parser.add_argument("--hsize", type=int,   help="size of the hidden layer", defa
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
 parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
+parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
 
 args = parser.parse_args()
 
@@ -26,7 +27,7 @@ Nfeat  = X.shape[1]
 Nprot  = Ytrain.shape[1]
 Ncmpd  = Ytrain.shape[0]
 
-batch_size = 100
+batch_size = args.batch_size
 h_size     = args.hsize
 reg        = args.reg
 zreg       = args.zreg
@@ -47,6 +48,7 @@ print("Hidden size:    %d" % h_size)
 print("reg:            %.1e" % reg)
 print("Z-reg:          %.1e" % zreg)
 print("Learning rate:  %.1e" % lrate)
+print("Batch size:     %d"   % batch_size)
 print("Z non-linear:   %r"   % non_linear_z)
 print("-----------------------")
 
