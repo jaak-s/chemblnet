@@ -5,8 +5,9 @@ parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup ta
 parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
-parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
+parser.add_argument("--linear", help="fully linear model", action="store_true")
+parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
 
 args = parser.parse_args()
 
@@ -36,6 +37,7 @@ lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
 epsilon    = 1e-5
 non_linear_z = args.non_linear_z
+linear     = args.linear
 
 print("Matrix:         %s" % args.y)
 print("Side info:      %s" % args.side)
@@ -49,6 +51,7 @@ print("reg:            %.1e" % reg)
 print("Z-reg:          %.1e" % zreg)
 print("Learning rate:  %.1e" % lrate)
 print("Batch size:     %d"   % batch_size)
+print("All linear:     %r"   % linear)
 print("Z non-linear:   %r"   % non_linear_z)
 print("-----------------------")
 
@@ -108,7 +111,9 @@ sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 # h1         = tf.nn.relu6(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1)
 l1         = tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1
 Ze         = tf.nn.embedding_lookup(Z, z_idx)
-if non_linear_z:
+if linear:
+    h1     = l1 + Ze
+elif non_linear_z:
     h1     = tf.tanh(l1 + Ze)
 else:
     h1     = tf.tanh(l1) + Ze
