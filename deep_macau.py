@@ -6,8 +6,10 @@ parser.add_argument("--hsize", type=int,   help="size of the hidden layer", defa
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
-parser.add_argument("--linear", help="fully linear model", action="store_true")
-parser.add_argument("--non-linear-z", help="move Z inside non-linearity", action="store_true")
+parser.add_argument("--model", type=str,
+                    help = "Network model",
+                    choices = ["main", "linear", "non_linear_z", "residual", "residual2", "relu"],
+                    default = "main")
 
 args = parser.parse_args()
 
@@ -32,12 +34,12 @@ batch_size = args.batch_size
 h_size     = args.hsize
 reg        = args.reg
 zreg       = args.zreg
+res_reg    = 3e-3
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
 epsilon    = 1e-5
-non_linear_z = args.non_linear_z
-linear     = args.linear
+model      = args.model
 
 print("Matrix:         %s" % args.y)
 print("Side info:      %s" % args.side)
@@ -51,8 +53,7 @@ print("reg:            %.1e" % reg)
 print("Z-reg:          %.1e" % zreg)
 print("Learning rate:  %.1e" % lrate)
 print("Batch size:     %d"   % batch_size)
-print("All linear:     %r"   % linear)
-print("Z non-linear:   %r"   % non_linear_z)
+print("Model:          %s"   % model)
 print("-----------------------")
 
 ## variables for the model
@@ -63,6 +64,12 @@ W2 = tf.Variable(tf.random_uniform([Nprot, h_size], minval=-1/np.sqrt(h_size), m
 b2 = tf.Variable(tf.random_uniform([Nprot], minval=-1/np.sqrt(Nprot), maxval=1/np.sqrt(Nprot)))
 b2g = tf.constant(Ytrain.data.mean(), dtype=tf.float32)
 Z  = tf.Variable(tf.random_uniform([Ncmpd, h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
+
+## layers for residual layer
+Wres1 = tf.Variable(tf.random_uniform([h_size, h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)), name="Wres1")
+bres1 = tf.Variable(tf.zeros(h_size), name="bres1")
+Wres2 = tf.Variable(tf.random_uniform([h_size, h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)), name="Wres2")
+bres2 = tf.Variable(tf.zeros(h_size), name="bres2")
 
 ## inputs
 y_val      = tf.placeholder(tf.float32)
@@ -111,12 +118,26 @@ sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 # h1         = tf.nn.relu6(tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1)
 l1         = tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1
 Ze         = tf.nn.embedding_lookup(Z, z_idx)
-if linear:
-    h1     = l1 + Ze
-elif non_linear_z:
-    h1     = tf.tanh(l1 + Ze)
+if model == "linear":
+    h1 = l1 + Ze
+elif model == "non_linear_z":
+    h1 = tf.tanh(l1 + Ze)
+elif model == "main":
+    h1 = tf.tanh(l1) + Ze
+elif model == "residual":
+    h1tmp = tf.tanh(l1 + Ze)
+    #h1    = h1tmp + tf.tanh(tf.matmul(Wres2, tf.tanh(tf.matmul(Wres1, h1tmp) + bres1)) + bres2)
+    h1 = h1tmp + tf.tanh(tf.matmul(h1tmp, Wres1) + bres1)
+elif model == "residual2":
+    h1tmp  = l1 + Ze
+    #h1    = h1tmp + tf.tanh(tf.matmul(Wres2, tf.tanh(tf.matmul(Wres1, h1tmp) + bres1)) + bres2)
+    h1tmp2 = tf.tanh(tf.matmul(h1tmp, Wres1) + bres1)
+    h1     = tf.tanh(h1tmp + tf.matmul(h1tmp2, Wres2) + bres2)
+elif model == "relu":
+    h1 = tf.nn.relu(l1 + Ze)
 else:
-    h1     = tf.tanh(l1) + Ze
+    raise ValueError("Parameter 'model' has unknown value (%s)." % model)
+
 
 ## batch normalization doesn't work that well in comparison to Torch 
 # h1         = batch_norm_wrapper(l1, tr_ind)
@@ -139,6 +160,9 @@ b_ratio = np.float32(Ncmpd) / np.float32(batch_size)
 y_loss     = tf.reduce_sum(tf.square(y_val - y_pred))
 #l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * b_ratio * tf.nn.l2_loss(Ze)
 l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * tf.nn.l2_loss(Z)
+if model == "residual" or model == "residual2":
+    l2_reg += res_reg * tf.nn.l2_loss(Wres1) + res_reg * tf.nn.l2_loss(Wres2)
+
 loss       = l2_reg + y_loss/np.float32(batch_size)
 
 # Use the adam optimizer
