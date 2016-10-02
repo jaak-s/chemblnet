@@ -1,7 +1,7 @@
 import tensorflow as tf
 import scipy.io
 import numpy as np
-import chembl_data as cd
+import chemblnet as cd
 
 label = scipy.io.mmread("chembl-IC50-346targets.mm")
 data  = scipy.io.mmread("chembl-IC50-compound-feat.mm")
@@ -19,7 +19,7 @@ for damp in [1.0, 4.0, 10.0]:
   solution = lsqr(Xtr, Ytr, damp = damp, atol=1e-7, btol=1e-7)                     
   print("RMSE (reg= %.1f): %f" % (damp, np.sqrt(np.mean((Xte.dot(solution[0]) - Yte)**2))) )
 
-# linear model for sparse input
+# MLP model for sparse input
 W1 = tf.Variable(tf.truncated_normal([Nfeat, 20], stddev=1/500.0))
 b1 = tf.Variable(tf.zeros([20]))
 W2 = tf.Variable(tf.truncated_normal([20, 1], stddev=1/10.0))
