@@ -166,7 +166,7 @@ l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2 + lambda_zreg * tf.nn.l2_l
 if model == "residual" or model == "residual2":
     l2_reg += res_reg * tf.nn.l2_loss(Wres1) + res_reg * tf.nn.l2_loss(Wres2)
 
-loss       = l2_reg + y_loss/np.float32(batch_size)
+loss       = l2_reg + y_loss / tf.to_float(tf.shape(z_idx)[0])
 
 # Use the adam optimizer
 train_op   = tf.train.AdamOptimizer(learning_rate).minimize(loss)
