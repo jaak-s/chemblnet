@@ -1,10 +1,25 @@
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--reg",   type=float, help="regularization for layers", default = 1e-3)
+parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
+parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
+parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
+parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
+parser.add_argument("--epochs", type=int,  help="number of epochs", default = 100)
+parser.add_argument("--model", type=str,
+                    help = "Network model",
+                    choices = ["mlp"],
+                    default = "mlp")
+
+args = parser.parse_args()
+
 import tensorflow as tf
 import scipy.io
 import numpy as np
 import chemblnet as cn
 
-label = scipy.io.mmread("chembl-IC50-346targets.mm")
-X     = scipy.io.mmread("chembl-IC50-compound-feat.mm").tocsr()
+label = scipy.io.mmread(args.y)
+X     = scipy.io.mmread(args.side).tocsr()
 
 Ytrain, Ytest = cn.make_train_test(label, 0.2)
 Ytrain = Ytrain.tocsr()
@@ -14,14 +29,29 @@ Nfeat  = X.shape[1]
 Nprot  = Ytrain.shape[1]
 Ncmpd  = Ytrain.shape[0]
 
-print("St. deviation:   %f" % np.std( Ytest.data ))
-
-batch_size = 100 #Ncmpd #np.ceil(Ncmpd/10)
-h_size     = 100
-reg        = 0.001
+batch_size = args.batch_size
+h_size     = args.hsize
+reg        = args.reg
+res_reg    = 3e-3
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
+lrate_min  = 3e-5
 epsilon    = 1e-5
+model      = args.model
+
+print("Matrix:         %s" % args.y)
+print("Side info:      %s" % args.side)
+print("Num compounds:  %d" % Ncmpd)
+print("Num proteins:   %d" % Nprot)
+print("Num features:   %d" % Nfeat)
+print("St. deviation:  %f" % np.std( Ytest.data ))
+print("-----------------------")
+print("Hidden size:    %d" % h_size)
+print("reg:            %.1e" % reg)
+print("Learning rate:  %.1e" % lrate)
+print("Batch size:     %d"   % batch_size)
+print("Model:          %s"   % model)
+print("-----------------------")
 
 ## variables for the model
 W1 = tf.Variable(tf.random_uniform([Nfeat, h_size], minval=-1/np.sqrt(Nfeat), maxval=1/np.sqrt(Nfeat)))
@@ -40,32 +70,6 @@ sp_shape   = tf.placeholder(tf.int64)
 sp_ids_val = tf.placeholder(tf.int64)
 tr_ind     = tf.placeholder(tf.bool)
 
-def l1_reg(tensor, weight=1.0, scope=None):
-  with tf.op_scope([tensor], scope, 'L1Regularizer'):
-    l1_weight = tf.convert_to_tensor(weight,
-                                     dtype=tensor.dtype.base_dtype,
-                                     name='weight')
-    return tf.mul(l1_weight, tf.reduce_sum(tf.abs(tensor)), name='value')
-
-def batch_norm_wrapper(inputs, is_training, decay = 0.999):
-    scale = tf.Variable(tf.ones([inputs.get_shape()[-1]]))
-    beta = tf.Variable(tf.zeros([inputs.get_shape()[-1]]))
-    pop_mean = tf.Variable(tf.zeros([inputs.get_shape()[-1]]), trainable=False)
-    pop_var = tf.Variable(tf.ones([inputs.get_shape()[-1]]), trainable=False)
-
-    if is_training is not None:
-        batch_mean, batch_var = tf.nn.moments(inputs,[0])
-        train_mean = tf.assign(pop_mean,
-                               pop_mean * decay + batch_mean * (1 - decay))
-        train_var = tf.assign(pop_var,
-                              pop_var * decay + batch_var * (1 - decay))
-        with tf.control_dependencies([train_mean, train_var]):
-            return tf.nn.batch_normalization(inputs,
-                train_mean, train_var, beta, scale, epsilon)
-    else:
-        return tf.nn.batch_normalization(inputs,
-            pop_mean, pop_var, beta, scale, epsilon)
-
 ## regularization parameter
 lambda_reg = tf.placeholder(tf.float32)
 learning_rate = tf.placeholder(tf.float32)
@@ -77,21 +81,11 @@ sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 l1         = tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1
 h1         = tf.tanh(l1)
 
-## batch normalization doesn't work that well in comparison to Torch 
-# h1         = batch_norm_wrapper(l1, tr_ind)
-
 h1e        = tf.nn.embedding_lookup(h1, y_idx_comp)
 W2e        = tf.nn.embedding_lookup(W2, y_idx_prot)
 b2e        = tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
 l2         = tf.squeeze(tf.batch_matmul(h1e, W2e, adj_y=True), [1, 2]) + b2e
 y_pred     = l2 + b2g
-
-## batch normalization doesn't work that well in comparison to Torch 
-# scale2e    = tf.nn.embedding_lookup(scale2, tf.squeeze(y_idx_prot, [1]))
-# beta2e     = tf.nn.embedding_lookup(beta2, tf.squeeze(y_idx_prot, [1]))
-# batch_mean2, batch_var2 = tf.nn.moments(l2,[0])
-# z2         = (l2 - batch_mean2) / tf.sqrt(batch_var2 + epsilon)
-# y_pred     = scale2e * l2 + b2g
 
 y_loss     = tf.reduce_sum(tf.square(y_val - y_pred))
 l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2
@@ -125,7 +119,7 @@ with tf.Session() as sess:
   best_train_sse = np.inf
   decay_cnt = 0
 
-  for epoch in range(1000):
+  for epoch in range(200):
     rIdx = np.random.permutation(Ytrain.shape[0])
     
     if decay_cnt > 2:
