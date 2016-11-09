@@ -6,7 +6,7 @@ parser.add_argument("--hsize", type=int,   help="size of the hidden layer", defa
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
-parser.add_argument("--epochs", type=int,  help="number of epochs", default = 100)
+parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
 parser.add_argument("--model", type=str,
                     help = "Network model",
                     choices = ["main", "linear", "non_linear_z", "residual", "residual2", "relu"],
