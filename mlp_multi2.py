@@ -36,7 +36,6 @@ res_reg    = 3e-3
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
 lrate_min  = 3e-5
-epsilon    = 1e-5
 model      = args.model
 
 print("Matrix:         %s" % args.y)
@@ -54,8 +53,12 @@ print("Model:          %s"   % model)
 print("-----------------------")
 
 ## variables for the model
-W1 = tf.Variable(tf.random_uniform([Nfeat, h_size], minval=-1/np.sqrt(Nfeat), maxval=1/np.sqrt(Nfeat)))
-b1 = tf.Variable(tf.random_uniform([h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
+W1   = tf.Variable(tf.random_uniform([Nfeat, h_size], minval=-1/np.sqrt(Nfeat), maxval=1/np.sqrt(Nfeat)))
+b1   = tf.Variable(tf.random_uniform([h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
+
+W1_5 = tf.Variable(tf.random_uniform([h_size, h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
+b1_5 = tf.Variable(tf.random_uniform([h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
+
 W2 = tf.Variable(tf.random_uniform([Nprot, h_size], minval=-1/np.sqrt(h_size), maxval=1/np.sqrt(h_size)))
 # b2 = tf.Variable(tf.constant(Ytrain.data.mean(), shape=[Nprot], dtype=tf.float32))
 b2 = tf.Variable(tf.random_uniform([Nprot], minval=-1/np.sqrt(Nprot), maxval=1/np.sqrt(Nprot)))
@@ -81,14 +84,18 @@ sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
 l1         = tf.nn.embedding_lookup_sparse(W1, sp_ids, None, combiner = "sum") + b1
 h1         = tf.tanh(l1)
 
-h1e        = tf.nn.embedding_lookup(h1, y_idx_comp)
+## add another layer
+h1_5       = tf.tanh( tf.nn.bias_add(tf.matmul(W1_5, h1), b1_5) )
+
+## output layer
+h1e        = tf.nn.embedding_lookup(h1_5, y_idx_comp)
 W2e        = tf.nn.embedding_lookup(W2, y_idx_prot)
 b2e        = tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
 l2         = tf.squeeze(tf.batch_matmul(h1e, W2e, adj_y=True), [1, 2]) + b2e
 y_pred     = l2 + b2g
 
 y_loss     = tf.reduce_sum(tf.square(y_val - y_pred))
-l2_reg     = lambda_reg * tf.global_norm((W1, W2))**2
+l2_reg     = lambda_reg * tf.global_norm((W1, W1_5, W2))**2
 loss       = l2_reg + y_loss/np.float32(batch_size)
 
 # Use the adam optimizer
@@ -97,6 +104,7 @@ train_op   = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 def select_rows(X, row_idx):
   Xtmp = X[row_idx]
   indices = np.zeros((Xtmp.nnz, 1), dtype = np.int64)
+## TODO: check if np.where is faster than this custom code
   for i in range(row_idx.shape[0]):
     indices[ Xtmp.indptr[i] : Xtmp.indptr[i+1], 0 ] = i
   shape = [row_idx.shape[0], X.shape[1]]
@@ -119,7 +127,7 @@ with tf.Session() as sess:
   best_train_sse = np.inf
   decay_cnt = 0
 
-  for epoch in range(200):
+  for epoch in range(args.epochs):
     rIdx = np.random.permutation(Ytrain.shape[0])
     
     if decay_cnt > 2:
@@ -130,8 +138,8 @@ with tf.Session() as sess:
           print("Converged, stopping at learning rate of 1e-6.")
           break
 
-    ## mini-batch loop
-    for start in np.arange(0, Ytrain.shape[0], batch_size):
+    ## mini-batch loop (skipping the last batch)
+    for start in np.arange(0, Ytrain.shape[0] - batch_size + 1, batch_size):
       idx = rIdx[start : min(Ytrain.shape[0], start + batch_size)]
       bx_indices, bx_shape, bx_ids_val           = select_rows(X, idx)
       by_idx_comp, by_shape, by_idx_prot, by_val = select_y(Ytrain, idx)
