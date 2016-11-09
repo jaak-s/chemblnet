@@ -9,7 +9,7 @@ python setup.py install --user
 
 You also need to install TensorFlow for running the models in this package.
 
-# Example model training
+# Model training example
 First you need to download IC50 data and ECFP features:
 ```
 wget http://homes.esat.kuleuven.be/~jsimm/chembl-IC50-346targets.mm
