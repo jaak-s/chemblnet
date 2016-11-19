@@ -1,12 +1,13 @@
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--reg",   type=float, help="regularization for layers", default = 0.001)
-parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup table)", default = 0.001)
+parser.add_argument("--reg",   type=float, help="regularization for layers", default = 1e-3)
+parser.add_argument("--zreg",  type=float, help="regularization for Z (lookup table)", default = 1e-3)
 parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
 parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
+parser.add_argument("--test-ratio", type=float, help="ratio of y values to move to test set (default 0.20)", default=0.20)
 parser.add_argument("--model", type=str,
                     help = "Network model",
                     choices = ["main", "linear", "non_linear_z", "residual", "residual2", "relu"],
@@ -24,7 +25,7 @@ from scipy.sparse import hstack
 label = scipy.io.mmread(args.y)
 X     = scipy.io.mmread(args.side).tocsr()
 
-Ytrain, Ytest = cn.make_train_test(label, 0.2, seed = 123456)
+Ytrain, Ytest = cn.make_train_test(label, args.test_ratio)
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
 
@@ -43,12 +44,17 @@ lrate_min  = 3e-5
 epsilon    = 1e-5
 model      = args.model
 
+Ytest_std  = np.std( Ytest.data ) if Ytest.nnz > 0 else np.nan
+
 print("Matrix:         %s" % args.y)
 print("Side info:      %s" % args.side)
+print("Test ratio:     %.2f" % args.test_ratio)
+print("Num y train:    %d" % Ytrain.nnz)
+print("Num y test:     %d" % Ytest.nnz)
 print("Num compounds:  %d" % Ncmpd)
 print("Num proteins:   %d" % Nprot)
 print("Num features:   %d" % Nfeat)
-print("St. deviation:  %f" % np.std( Ytest.data ))
+print("St. deviation:  %f" % Ytest_std)
 print("-----------------------")
 print("Num epochs:     %d" % args.epochs)
 print("Hidden size:    %d" % h_size)
@@ -252,7 +258,7 @@ with tf.Session() as sess:
       W1_l2 = sess.run(tf.nn.l2_loss(W1))
       W2_l2 = sess.run(tf.nn.l2_loss(W2))
       Z_l2  = sess.run(tf.nn.l2_loss(Z))
-      test_rmse = np.sqrt( test_sse / Yte_val.shape[0])
+      test_rmse = np.sqrt( test_sse / Yte_val.shape[0]) if Yte_val.shape[0] > 0 else np.nan
       train_rmse = np.sqrt( train_sse / Ytr_val.shape[0])
 
       print("%3d. RMSE(test) = %.5f   RMSE(train) = %.5f   ||W1|| = %.2f   ||W2|| = %.2f ||Z|| = %.2f  lr = %.0e" % (epoch, test_rmse, train_rmse, np.sqrt(W1_l2), np.sqrt(W2_l2), np.sqrt(Z_l2), lrate) )
