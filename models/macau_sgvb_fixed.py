@@ -2,6 +2,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
+parser.add_argument("--epochs", type=int,  help="number of epochs", default = 2000)
+parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 30)
+parser.add_argument("--batch-size", type=int,   help="batch size", default = 256)
 args = parser.parse_args()
 
 import tensorflow as tf
@@ -20,16 +23,30 @@ Ytest  = Ytest.tocsr()
 Nfeat  = X.shape[1]
 Ncomp  = Ytrain.shape[0]
 Nprot  = Ytrain.shape[1]
-print("St. deviation:   %f" % np.std( Ytest.data ))
 
 # learning parameters
 Y_prec      = 5.0
-h1_size     = 32
+h1_size     = args.hsize
 
-batch_size  = 256
+batch_size  = args.batch_size
 lrate       = 1e-1
-lrate_decay = 0.1
-lrate_jump  = 1.2
+lrate_decay = 0.5
+
+print("Matrix:         %s" % args.y)
+print("Side info:      %s" % args.side)
+print("Num compounds:  %d" % Ncomp)
+print("Num proteins:   %d" % Nprot)
+print("Num features:   %d" % Nfeat)
+print("St. deviation:  %f" % np.std( Ytest.data ))
+print("-----------------------")
+print("Num epochs:     %d" % args.epochs)
+print("Hidden size:    %d" % args.hsize)
+#print("reg:            %.1e" % reg)
+#print("Z-reg:          %.1e" % zreg)
+print("Learning rate:  %.1e" % lrate)
+print("Batch size:     %d"   % batch_size)
+print("-----------------------")
+
 
 extra_info  = False
 
@@ -80,7 +97,7 @@ L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.
 loss    = L_D + L_prior
 
 train_op = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
-#train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+#train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 #train_op = tf.train.MomentumOptimizer(1e-7, 0.90).minimize(loss)
 
 ######################################################
@@ -143,9 +160,10 @@ decay_count = 0
 
 sess = tf.Session()
 if True:
-  sess.run(tf.initialize_all_variables())
+  #sess.run(tf.initialize_all_variables())
+  sess.run(tf.global_variables_initializer())
 
-  for epoch in range(2000):
+  for epoch in range(args.epochs):
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -215,19 +233,6 @@ if True:
       else:
         decay_count = np.max( (1, decay_count + 1) )
 
-      if decay_count > 5:
-        print("Decreasing learning rate from %f to %f." % (lrate, lrate * lrate_decay))
-        lrate = lrate * lrate_decay
-        decay_count = 0
-        best_train_rmse = train_rmse
-        if lrate <= 1e-6:
-          print("Learning reached 1e-6, stopping.")
-          break
-      if decay_count <= -3:
-          print("Increasing learning rate from %e to %e." % (lrate, lrate * lrate_jump))
-          lrate = lrate * lrate_jump
-          decay_count = 0
-
       if epoch % 20 == 0:
           print("Epoch\tRMSE(te, tr)\t  L_D,loss(train)\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
 
@@ -237,4 +242,10 @@ if True:
           #print("beta: [%s]" % beta.summarize(sess))
           #print("Z:    [%s]" % Z.summarize(sess))
           print("V:    [%s]" % V.summarize(sess))
+
+      if (epoch + 1) % 100 == 0 and lrate > 1e-5:
+        print("Decreasing learning rate from %e to %e." % (lrate, lrate * lrate_decay))
+        lrate = lrate * lrate_decay
+        decay_count = 0
+        best_train_rmse = train_rmse
 
