@@ -2,6 +2,8 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
+parser.add_argument("--out",   type=str,   help="output file", default = "out.csv")
+parser.add_argument("--batch-size", type=int, help="batch size", default = 512)
 args = parser.parse_args()
 
 import tensorflow as tf
@@ -43,10 +45,10 @@ Nprot  = Ytrain.shape[1]
 print("St. deviation:   %f" % np.std( Ytest.data ))
 
 # learning parameters
-Y_prec      = 5.0
-h1_size     = 30
+Y_prec     = 5.0
+h1_size    = 30
 
-batch_size  = 512
+batch_size = args.batch_size
 
 ## inputs
 y_val      = tf.placeholder(tf.float32)
@@ -232,7 +234,7 @@ if True:
   negll = - lik.mean()
   print("NegLL: %.5f" % negll)
 
-  with open("macau_sgvb_full-results.csv", "a") as fh:
+  with open(args.out, "a") as fh:
     fh.write("%.5f,%.5f\n" % (test_rmse, negll))
 
 
