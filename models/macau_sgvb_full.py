@@ -10,6 +10,7 @@ import numpy as np
 import scipy as sp
 import chemblnet.vbutils as vb
 import numbers
+import scipy.stats
 
 def make_train_test(Y, ntest, seed = None):
     if type(Y) not in [sp.sparse.coo.coo_matrix, sp.sparse.csr.csr_matrix, sp.sparse.csc.csc_matrix]:
@@ -82,17 +83,22 @@ y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
 ## variance
 Zvar_b  = tf.exp(tf.nn.embedding_lookup(Z.logvar, x_idx_comp))
 h1var   = vb.embedding_lookup_sparse_sumexp(beta.logvar, sp_ids) + Zvar_b
-#h1var   = tf.nn.embedding_lookup_sparse(beta.var, sp_ids, None, combiner = "sum") + Zvar_b
 h1var_b = tf.nn.embedding_lookup(h1var, y_idx_comp)
 Vvar_b  = tf.exp(tf.nn.embedding_lookup(V.logvar, y_idx_prot))
 
 E_usq   = tf.add(h1var_b, tf.square(h1_b))
-y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2]))
-y_var2  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2]))
+var1    = tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2])
+var2    = tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2])
+y_var   = var1 + var2
+y_var1  = Y_prec / 2.0 * tf.reduce_sum(var1)
+y_var2  = Y_prec / 2.0 * tf.reduce_sum(var2)
 
 L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
 L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
 loss    = L_D + L_prior
+
+#lrate    = np.concatenate([np.repeat(1e-3, 200), np.repeat(1e-4, 200), np.repeat(1e-5, 200)])
+#train_op = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
 
 train_op = tf.train.AdagradOptimizer(1e-1).minimize(loss)
 #train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
@@ -151,12 +157,20 @@ Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytra
 #                          tb_ratio:   Ytrain.nnz / float(by_idx_comp.shape[0])
 #                          })
 
+test_fd = {x_indices:  Xi,
+           x_shape:    Xs,
+           x_ids_val:  Xv,
+           y_idx_comp: Yte_idx_comp,
+           y_idx_prot: Yte_idx_prot,
+           y_val:      Yte_val,
+           x_idx_comp: Xindices}
+
 #with tf.Session() as sess:
 sess = tf.Session()
 if True:
-  sess.run(tf.initialize_all_variables())
+  sess.run(tf.global_variables_initializer())
 
-  for epoch in range(300):
+  for epoch in range(2000):
     rIdx = np.random.permutation(Ytrain.shape[0])
 
     ## mini-batch loop
@@ -175,21 +189,16 @@ if True:
                                     y_val:      by_val,
                                     x_idx_comp: idx,
                                     tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
+                                    #learning_rate: lrate
                                     #beta.prec:  5.0 * np.ones( beta.shape[-1] ),
-                                    V.prec:     5.0 * np.ones( V.shape[-1] ),
-                                    Z.prec:     5.0 * np.ones( Z.shape[-1] )
+                                    #V.prec:     5.0 * np.ones( V.shape[-1] ),
+                                    #Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                     })
 
     ## epoch's Ytest error
     if epoch % 1 == 0:
       test_sse = sess.run(tf.reduce_sum(tf.square(y_val - y_pred)),
-                          feed_dict = {x_indices:  Xi,
-                                       x_shape:    Xs,
-                                       x_ids_val:  Xv,
-                                       y_idx_comp: Yte_idx_comp,
-                                       y_idx_prot: Yte_idx_prot,
-                                       y_val:      Yte_val,
-                                       x_idx_comp: Xindices})
+                          feed_dict = test_fd)
 #beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
       Ltr = sess.run([L_D, loss, beta.prec_div(), beta.normal_div()],
                      feed_dict={x_indices:  Xi,
@@ -201,8 +210,8 @@ if True:
                                y_val:      Ytr_val,
                                tb_ratio:   1.0,
                                #beta.prec:  5.0 * np.ones( beta.shape[-1] ),
-                               V.prec:     5.0 * np.ones( V.shape[-1] ),
-                               Z.prec:     5.0 * np.ones( Z.shape[-1] )
+                               #V.prec:     5.0 * np.ones( V.shape[-1] ),
+                               #Z.prec:     5.0 * np.ones( Z.shape[-1] )
                                })
       beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
       beta_std_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
@@ -215,5 +224,16 @@ if True:
           print("Epoch\tRMSE(test)\tL_D(train)\tloss(train)\tbeta divergence\t\tmin(beta.var)\trange(beta.prec)")
       print("%3d.\t%.5f\t\t%.2e\t%.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]" %
             (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max()))
+
+  ## computing variance
+  ytest_mean, ytest_var = sess.run([y_pred, y_var], feed_dict=test_fd)
+  std  = np.sqrt(1/Y_prec + ytest_var)
+  lik  = scipy.stats.norm.logpdf(Yte_val, loc = ytest_mean, scale=std)
+  negll = - lik.mean()
+  print("NegLL: %.5f" % negll)
+
+  with open("macau_sgvb_full-results.csv", "a") as fh:
+    fh.write("%.5f,%.5f\n" % (test_rmse, negll))
+
 
 
