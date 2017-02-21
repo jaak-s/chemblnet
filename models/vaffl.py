@@ -91,14 +91,15 @@ Vvar_b  = V.var
 h_u_var = tf.matmul(tf.square(x_u), beta_u.var) + Uvar_b
 h_v_var = tf.matmul(tf.square(x_v), beta_v.var) + Vvar_b
 
-var_b   = tf.matmul(h_u_var, h_v_var + tf.square(h_v)) / 2.0 + tf.matmul(tf.square(h_u), h_v_var) / 2.0
+y_var    = Y_prec / 2.0 * tf.matmul(h_u_var, h_v_var + tf.square(h_v)) + Y_prec / 2.0 * tf.matmul(tf.square(h_u), h_v_var)
+var_loss = tf.gather_nd(y_var, y_coord)
 
-E_usq   = tf.add(h1var_b, tf.square(h1_b))
-y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2]))
-y_var2  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2]))
+#E_usq   = tf.add(h1var_b, tf.square(h1_b))
+#y_var1  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(E_usq, Vvar_b, adj_y=True), [1, 2]))
+#y_var2  = Y_prec / 2.0 * tf.reduce_sum(tf.squeeze(tf.batch_matmul(h1var_b, tf.square(Vmean_b), adj_y=True), [1, 2]))
 
-L_D     = tb_ratio * (y_loss + var_b)
-L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div_partial(Zmean_b, Zvar_b, bsize) + V.normal_div()
+L_D     = tb_ratio * (y_loss + var_loss)
+L_prior = beta_u.prec_div() + beta_v.prec_div() + U.prec_div() + V.prec_div() + beta_u.normal_div() + beta_v.normal_div() + U.normal_div_partial(Umean_b, Uvar_b, bsize) + V.normal_div()
 loss    = L_D + L_prior
 
 train_op = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
@@ -107,57 +108,17 @@ train_op = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
 
 ######################################################
 
-def select_rows(X, row_idx):
-  Xtmp = X[row_idx]
-  indices = np.zeros((Xtmp.nnz, 1), dtype = np.int64)
-  for i in range(row_idx.shape[0]):
-    indices[ Xtmp.indptr[i] : Xtmp.indptr[i+1], 0 ] = i
-  shape   = [0, 0]
-  return indices, shape, Xtmp.indices.astype(np.int64, copy=False)
-
 def select_y(X, row_idx):
   Xtmp = X[row_idx]
-  indices = np.zeros((Xtmp.nnz, 1), dtype = np.int64)
-  for i in np.arange(row_idx.shape[0]):
-    indices[ Xtmp.indptr[i] : Xtmp.indptr[i+1], 0 ] = i
-  return indices, [0, 0], Xtmp.indices.astype(np.int64, copy=False).reshape(-1, 1), Xtmp.data.astype(np.float32, copy=False)
+  return np.column_stack(Xtmp.nonzero()), Xtmp.data.astype(np.float32), [0, 0]
 
-#X_ids      = np.arange(X.shape[0])
-## debugging
 rIdx = np.random.permutation(Ytrain.shape[0])
-#idx  = rIdx[10 : 12]
-
-#bx_indices, bx_shape, bx_ids_val           = select_rows(X, idx)
-#by_idx_comp, by_shape, by_idx_prot, by_val = select_y(Ytrain, idx)
 
 # ---------- test data ------------- #
-Xi, Xs, Xv = select_rows(X, np.arange(X.shape[0]))
-Xindices   = np.arange(X.shape[0])
-Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest.shape[0]))
+Yte_coord, Yte_values, Yte_shape = select_y(Ytest, np.arange(Ytest.shape[0]))
 
 # ------- train data (all) --------- #
-Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytrain.shape[0]))
-
-# sess = tf.Session()
-# sess.run(tf.initialize_all_variables())
-# sess.run(y_pred, feed_dict={x_indices:  bx_indices,
-#                             x_shape:    bx_shape,
-#                             x_ids_val:  bx_ids_val,
-#                             x_idx_comp: idx,
-#                             y_idx_comp: by_idx_comp,
-#                             y_idx_prot: by_idx_prot,
-#                             y_val:      by_val
-#                             })
-#
-# sess.run(L_D, feed_dict={x_indices:  bx_indices,
-#                          x_shape:    bx_shape,
-#                          x_ids_val:  bx_ids_val,
-#                          x_idx_comp: idx,
-#                          y_idx_comp: by_idx_comp,
-#                          y_idx_prot: by_idx_prot,
-#                          y_val:      by_val,
-#                          tb_ratio:   Ytrain.nnz / float(by_idx_comp.shape[0])
-#                          })
+Ytr_coord, Ytr_values, Ytr_shape =  select_y(Ytrain, np.arange(Ytrain.shape[0]))
 
 #with tf.Session() as sess:
 best_train_rmse = np.inf
@@ -165,7 +126,6 @@ decay_count = 0
 
 sess = tf.Session()
 if True:
-  #sess.run(tf.initialize_all_variables())
   sess.run(tf.global_variables_initializer())
 
   for epoch in range(args.epochs):
@@ -176,20 +136,17 @@ if True:
       if start + batch_size > Ytrain.shape[0]:
         break
       idx = rIdx[start : start + batch_size]
-      bx_indices, bx_shape, bx_ids_val           = select_rows(X, idx)
-      by_idx_comp, by_shape, by_idx_prot, by_val = select_y(Ytrain, idx)
+      by_coord, by_values, by_shape = select_y(Ytrain, idx)
 
-      sess.run(train_op, feed_dict={x_indices:  bx_indices,
-                                    x_shape:    bx_shape,
-                                    x_ids_val:  bx_ids_val,
-                                    y_idx_comp: by_idx_comp,
-                                    y_idx_prot: by_idx_prot,
-                                    y_val:      by_val,
-                                    x_idx_comp: idx,
-                                    tb_ratio:   Ytrain.nnz / float(by_val.shape[0]),
-                                    learning_rate: lrate,
-                                    bsize:      batch_size
+      sess.run(train_op, feed_dict={x_u:  Fu[idx,:],
+                                    x_v:  Fv,
+                                    y_coord: by_idx_comp,
+                                    y_val:   by_values,
+                                    tb_ratio:       Ytrain.nnz / float(by_values.shape[0]),
+                                    learning_rate:  lrate,
+                                    bsize:          batch_size
                                     })
+    ## TODO: check from here
 
     ## epoch's Ytest error
     if epoch % 1 == 0:
