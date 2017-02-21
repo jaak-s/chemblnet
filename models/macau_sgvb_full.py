@@ -2,8 +2,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
 parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
-parser.add_argument("--out",   type=str,   help="output file", default = "out.csv")
+parser.add_argument("--out",   type=str,   help="output file", default = "")
 parser.add_argument("--batch-size", type=int, help="batch size", default = 512)
+parser.add_argument("--hsize", type=int,   help="latent dimension", default = 30)
 args = parser.parse_args()
 
 import tensorflow as tf
@@ -42,13 +43,15 @@ Ytest  = Ytest.tocsr()
 Nfeat  = X.shape[1]
 Ncomp  = Ytrain.shape[0]
 Nprot  = Ytrain.shape[1]
-print("St. deviation:   %f" % np.std( Ytest.data ))
 
 # learning parameters
 Y_prec     = 5.0
-h1_size    = 30
-
+h1_size    = args.hsize
 batch_size = args.batch_size
+
+print("St. deviation:   %f" % np.std( Ytest.data ))
+print("#latents:        %d" % h1_size)
+print("batch_size:      %d" % batch_size)
 
 ## inputs
 y_val      = tf.placeholder(tf.float32)
@@ -226,6 +229,7 @@ if True:
           print("Epoch\tRMSE(test)\tL_D(train)\tloss(train)\tbeta divergence\t\tmin(beta.var)\trange(beta.prec)")
       print("%3d.\t%.5f\t\t%.2e\t%.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]" %
             (epoch, test_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max()))
+      #print("  V.prec=[%.2f, %.2f]  Z.prec=[%.2f, %.2f]" % (V_prec.min(), V_prec.max(), Z_prec.min(), Z_prec.max()))
 
   ## computing variance
   ytest_mean, ytest_var = sess.run([y_pred, y_var], feed_dict=test_fd)
@@ -234,8 +238,9 @@ if True:
   negll = - lik.mean()
   print("NegLL: %.5f" % negll)
 
-  with open(args.out, "a") as fh:
-    fh.write("%.5f,%.5f\n" % (test_rmse, negll))
+  if len(args.out) > 0:
+    with open(args.out, "a") as fh:
+      fh.write("%.5f,%.5f\n" % (test_rmse, negll))
 
 
 
