@@ -68,7 +68,7 @@ learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 tb_ratio = tf.placeholder(tf.float32, name = "tb_ratio")
 
 ## model
-beta  = vb.NormalGammaUni("beta", shape = [Fu.shape[0], h1_size], initial_stdev = 0.05)
+beta  = vb.NormalGammaUni("beta", shape = [Fu.shape[0], h1_size], initial_stdev = 1.0, a0=1e-2, b0=1e-2, mean_init_std=0.01)
 Z     = vb.NormalGammaUni("Z",    shape = [Ncomp, h1_size], initial_stdev = 1.0)
 V     = vb.NormalGammaUni("V",    shape = [Nprot, h1_size], initial_stdev = 1.0)
 global_mean = tf.Variable(Ytrain.data.mean(), dtype=tf.float32)
