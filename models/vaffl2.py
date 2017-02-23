@@ -78,8 +78,8 @@ sp_ids  = tf.SparseTensor(x_indices, x_ids_val, x_shape)
 
 ## means
 Zmean_b = tf.nn.embedding_lookup(Z.mean, x_idx_comp)
-#h1      = tf.nn.embedding_lookup_sparse(beta.mean, sp_ids, None, combiner = "sum") + Zmean_b
-h1      = Zmean_b
+h1      = tf.nn.embedding_lookup_sparse(beta.mean, sp_ids, None, combiner = "sum") + Zmean_b
+#h1      = Zmean_b
 h1_b    = tf.nn.embedding_lookup(h1, y_idx_comp)
 Vmean_b = tf.nn.embedding_lookup(V.mean, y_idx_prot)
 y_pred  = global_mean + tf.squeeze(tf.batch_matmul(h1_b, Vmean_b, adj_y=True), [1, 2])
@@ -87,8 +87,8 @@ y_loss  = Y_prec / 2.0 * tf.reduce_sum(tf.square(y_val - y_pred))
 
 ## variance
 Zvar_b  = tf.exp(tf.nn.embedding_lookup(Z.logvar, x_idx_comp))
-#h1var   = vb.embedding_lookup_sparse_sumexp(beta.logvar, sp_ids) + Zvar_b
-h1var   = Zvar_b
+h1var   = vb.embedding_lookup_sparse_sumexp(beta.logvar, sp_ids) + Zvar_b
+#h1var   = Zvar_b
 h1var_b = tf.nn.embedding_lookup(h1var, y_idx_comp)
 Vvar_b  = tf.exp(tf.nn.embedding_lookup(V.logvar, y_idx_prot))
 
@@ -100,8 +100,8 @@ y_var1  = Y_prec / 2.0 * tf.reduce_sum(var1)
 y_var2  = Y_prec / 2.0 * tf.reduce_sum(var2)
 
 L_D     = tb_ratio * (y_loss + y_var1 + y_var2)
-#L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
-L_prior = Z.prec_div() + V.prec_div() + Z.normal_div() + V.normal_div()
+L_prior = beta.prec_div() + Z.prec_div() + V.prec_div() + beta.normal_div() + Z.normal_div() + V.normal_div()
+#L_prior = Z.prec_div() + V.prec_div() + Z.normal_div() + V.normal_div()
 loss    = L_D + L_prior
 
 #lrate    = np.concatenate([np.repeat(1e-3, 200), np.repeat(1e-4, 200), np.repeat(1e-5, 200)])
