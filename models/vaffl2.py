@@ -107,7 +107,7 @@ loss    = L_D + L_prior
 #lrate    = np.concatenate([np.repeat(1e-3, 200), np.repeat(1e-4, 200), np.repeat(1e-5, 200)])
 #train_op = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
 
-train_op = tf.train.AdagradOptimizer(5e-1).minimize(loss)
+train_op = tf.train.AdagradOptimizer(2e-1).minimize(loss)
 #train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
 
 ######################################################

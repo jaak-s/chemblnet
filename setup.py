@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='chemblnet',
-      version='0.1',
+      version='0.2',
       description='Neural Networks for ChEMBL',
       url='http://github.com/jaak-s/chemblnet',
       author='Jaak Simm',
