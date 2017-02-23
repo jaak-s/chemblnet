@@ -1,7 +1,6 @@
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
-parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
+parser.add_argument("--mat",   type=str,   help="mat file with observations X and side info", required=True)
 parser.add_argument("--epochs", type=int,  help="number of epochs", default = 2000)
 parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 30)
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 512)
@@ -19,7 +18,7 @@ Fu    = data["Fu"].todense()
 Fv    = data["Fv"].todense()
 # 109, 167, 168, 204, 214, 215
 
-Ytrain, Ytest = cn.make_train_test(label, 0.5, seed = 123456)
+Ytrain, Ytest = cn.make_train_test(label, 0.5)
 
 Ytrain = Ytrain.tocsr()
 Ytest  = Ytest.tocsr()
@@ -32,17 +31,14 @@ batch_size  = args.batch_size
 lrate       = 1e-1
 lrate_decay = 1.0
 
-print("Matrix:         %s" % args.y)
-print("Side info:      %s" % args.side)
-print("Num compounds:  %d" % Ncomp)
-print("Num proteins:   %d" % Nprot)
-print("Num features:   %d" % Nfeat)
-print("St. deviation:  %f" % np.std( Ytest.data ))
+print("Data file:      %s" % args.mat)
+print("Y size:         [%d, %d]" % (label.shape[0], label.shape[1]))
+print("Num row feat:   %d" % Fu.shape[1])
+print("Num col feat:   %d" % Fv.shape[1])
+print("Test stdev:     %.4f" % np.std( Ytest.data ))
 print("-----------------------")
 print("Num epochs:     %d" % args.epochs)
 print("Hidden size:    %d" % args.hsize)
-#print("reg:            %.1e" % reg)
-#print("Z-reg:          %.1e" % zreg)
 print("Learning rate:  %.1e" % lrate)
 print("Batch size:     %d"   % batch_size)
 print("-----------------------")
@@ -51,14 +47,14 @@ print("-----------------------")
 extra_info  = False
 
 ## y_val is a vector of values and y_coord gives their coordinates
-y_val   = tf.placeholder(tf.float32)
-y_coord = tf.placeholder(tf.int64, shape=[None, 2])
+y_val   = tf.placeholder(tf.float32, name="y_val")
+y_coord = tf.placeholder(tf.int32, shape=[None, 2], name="y_coord")
 #y_idx_u = tf.placeholder(tf.int64)
 #y_idx_v = tf.placeholder(tf.int64)
-x_u     = tf.placeholder(tf.float32, shape=[None, Fu.shape[1]])
-x_v     = tf.placeholder(tf.float32, shape=[None, Fv.shape[1]])
-u_idx   = tf.placeholder(tf.int64)
-v_idx   = tf.placeholder(tf.int64)
+x_u     = tf.placeholder(tf.float32, shape=[None, Fu.shape[1]], name="x_u")
+x_v     = tf.placeholder(tf.float32, shape=[None, Fv.shape[1]], name="x_v")
+u_idx   = tf.placeholder(tf.int64, name="u_idx")
+#v_idx   = tf.placeholder(tf.int64, name="v_idx")
 
 learning_rate = tf.placeholder(tf.float32, name = "learning_rate")
 
@@ -91,7 +87,7 @@ Vvar_b  = V.var
 h_u_var = tf.matmul(tf.square(x_u), beta_u.var) + Uvar_b
 h_v_var = tf.matmul(tf.square(x_v), beta_v.var) + Vvar_b
 
-y_var    = Y_prec / 2.0 * tf.matmul(h_u_var, h_v_var + tf.square(h_v)) + Y_prec / 2.0 * tf.matmul(tf.square(h_u), h_v_var)
+y_var    = Y_prec / 2.0 * tf.matmul(h_u_var, h_v_var + tf.square(h_v), transpose_b=True) + Y_prec / 2.0 * tf.matmul(tf.square(h_u), h_v_var, transpose_b=True)
 var_loss = tf.gather_nd(y_var, y_coord)
 
 #E_usq   = tf.add(h1var_b, tf.square(h1_b))
@@ -138,10 +134,11 @@ if True:
       idx = rIdx[start : start + batch_size]
       by_coord, by_values, by_shape = select_y(Ytrain, idx)
 
-      sess.run(train_op, feed_dict={x_u:  Fu[idx,:],
-                                    x_v:  Fv,
-                                    y_coord: by_idx_comp,
+      sess.run(train_op, feed_dict={x_u:     Fu[idx,:],
+                                    x_v:     Fv,
+                                    y_coord: by_coord,
                                     y_val:   by_values,
+                                    u_idx:   idx,
                                     tb_ratio:       Ytrain.nnz / float(by_values.shape[0]),
                                     learning_rate:  lrate,
                                     bsize:          batch_size
@@ -150,64 +147,42 @@ if True:
 
     ## epoch's Ytest error
     if epoch % 1 == 0:
-      test_sse = sess.run(y_sse,
-                          feed_dict = {x_indices:  Xi,
-                                       x_shape:    Xs,
-                                       x_ids_val:  Xv,
-                                       y_idx_comp: Yte_idx_comp,
-                                       y_idx_prot: Yte_idx_prot,
-                                       y_val:      Yte_val,
-                                       x_idx_comp: Xindices})
+      test_y_pred = sess.run(y_pred_b,
+                             feed_dict = {x_u:  Fu,
+                                          x_v:  Fv,
+                                          y_coord:  Yte_coord,
+                                          y_val:    Yte_values,
+                                          u_idx:    np.arange(Ytrain.shape[0])})
+      test_rmse = np.sqrt(np.mean(np.square(test_y_pred - Yte_values)))
 
-      train_sse = sess.run(y_sse,
-                          feed_dict = {x_indices:  Xi,
-                                       x_shape:    Xs,
-                                       x_ids_val:  Xv,
-                                       y_idx_comp: Ytr_idx_comp,
-                                       y_idx_prot: Ytr_idx_prot,
-                                       y_val:      Ytr_val,
-                                       x_idx_comp: Xindices})
-
-      Ltr = sess.run([L_D, loss, beta.prec_div(), beta.normal_div()],
-                     feed_dict={x_indices:  Xi,
-                               x_shape:    Xs,
-                               x_ids_val:  Xv,
-                               x_idx_comp: Xindices,
-                               y_idx_comp: Ytr_idx_comp,
-                               y_idx_prot: Ytr_idx_prot,
-                               y_val:      Ytr_val,
-                               tb_ratio:   1.0,
-                               bsize:      Ytrain.shape[0]
-                               })
-      beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
-      beta_std_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
-      beta_prec    = sess.run(beta.prec)
-      V_prec       = sess.run(V.prec)
-      V_l2         = np.sqrt(sess.run(tf.nn.l2_loss(V.mean)))
-      Z_prec       = sess.run(Z.prec)
-      #W2_l2 = sess.run(tf.nn.l2_loss(W2))
-      test_rmse  = np.sqrt( test_sse  / Yte_val.shape[0])
-      train_rmse = np.sqrt( train_sse / Ytr_val.shape[0])
-
-      if train_rmse < best_train_rmse:
-        best_train_rmse = train_rmse
-        decay_count = np.min( (-1, decay_count - 1) )
-      else:
-        decay_count = np.max( (1, decay_count + 1) )
+#      Ltr = sess.run([L_D, loss, beta.prec_div(), beta.normal_div()],
+#                     feed_dict={x_indices:  Xi,
+#                               x_shape:    Xs,
+#                               x_ids_val:  Xv,
+#                               x_idx_comp: Xindices,
+#                               y_idx_comp: Ytr_idx_comp,
+#                               y_idx_prot: Ytr_idx_prot,
+#                               y_val:      Ytr_val,
+#                               tb_ratio:   1.0,
+#                               bsize:      Ytrain.shape[0]
+#                               })
+#      beta_l2      = np.sqrt(sess.run(tf.nn.l2_loss(beta.mean)))
+#      beta_std_min = np.sqrt(sess.run(tf.reduce_min(beta.var)))
+#      beta_prec    = sess.run(beta.prec)
+#      V_prec       = sess.run(V.prec)
+#      V_l2         = np.sqrt(sess.run(tf.nn.l2_loss(V.mean)))
+#      Z_prec       = sess.run(Z.prec)
+#      #W2_l2 = sess.run(tf.nn.l2_loss(W2))
+#      test_rmse  = np.sqrt( test_sse  / Yte_val.shape[0])
+#      train_rmse = np.sqrt( train_sse / Ytr_val.shape[0])
 
       if epoch % 20 == 0:
           print("Epoch\tRMSE(te, tr)\t  L_D,loss(train)\tbeta divergence\t\tmin(beta.std)\tbeta.prec\tl2(V.mu)")
 
-      print("%3d.\t%.5f, %.5f  %.2e, %.2e\t[%.2e, %.2e]\t%.2e\t[%.1f, %.1f]\t%.2f" %
-            (epoch, test_rmse, train_rmse, Ltr[0], Ltr[1], Ltr[2], Ltr[3], beta_std_min, beta_prec.min(), beta_prec.max(), V_l2))
+      print("%3d.\t%.5f" % (epoch, test_rmse))
       if extra_info:
           #print("beta: [%s]" % beta.summarize(sess))
           #print("Z:    [%s]" % Z.summarize(sess))
           print("V:    [%s]" % V.summarize(sess))
 
-      if (epoch + 1) % 100 == 0 and lrate > 1e-5:
-        print("Decreasing learning rate from %e to %e." % (lrate, lrate * lrate_decay))
-        lrate = lrate * lrate_decay
-        decay_count = 0
-        best_train_rmse = train_rmse
 
