@@ -14,7 +14,7 @@ p.add('--batch_size', required=True, help='Size of the minibatch.', type=int)
 p.add('--test_ratio', required=True, help='Ratio of the testset.', type=float)
 #p.add("--noise", required=True, type=float, help="Noise multiplier (1.0 is SGLD)")
 p.add("--alpha", required=True, type=float, help="Noise precisoin (default 5.0)")
-p.add("--optimizer", required=True, type=str, help = "Optimizer to use", choices = ["sgd", "sgld"])
+p.add("--optimizer", required=True, type=str, help = "Optimizer to use", choices = ["sgd", "sgld", "adam", "rmsprop"])
 p.add("--board", required=False, type=str, help="board directory", default=None)
 p.add("--save",  required=False, type=str, help="filename to save the model to", default = None)
 p.add("--save_rmse", required=False, type=str, help="filename to save RMSEs", default = None)
@@ -148,7 +148,15 @@ prior     = lambda_b_ph * tf.nn.l2_loss(beta) + \
 loss      = prior + y_loss
 
 # Use the adam optimizer
-train_op   = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+if args.optimizer == "adam":
+    train_op   = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+elif args.optimizer == "sgd":
+    train_op   = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
+elif args.optimizer == "rmsprop":
+    train_op   = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
+elif args.optimizer == "sgld":
+    train_op   = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
+
 
 def select_rows(X, row_idx):
   Xtmp = X[row_idx]
