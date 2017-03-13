@@ -1,32 +1,61 @@
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("--lambda-b", type=float, help="regularization for beta", default = 5.0)
-parser.add_argument("--lambda-u", type=float, help="regularization for u",    default = 5.0)
-parser.add_argument("--lambda-v", type=float, help="regularization for v",    default = 5.0)
-parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
-parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
-parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
-parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
-parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
-parser.add_argument("--test-ratio", type=float, help="ratio of y values to move to test set (default 0.20)", default=0.20)
-parser.add_argument("--noise", type=float, help="Noise multiplier (1.0 is SGLD)", default=1.0)
-parser.add_argument("--alpha", type=float, help="Noise precisoin (default 5.0)", default=5.0)
-parser.add_argument("--optimizer", type=str,
-                    help = "Optimizer to use",
-                    choices = ["sgd", "sgld"],
-                    default = "sgd")
-parser.add_argument("--save",  type=str,   help="filename to save the model to", default = None)
+import configargparse
 
-args = parser.parse_args()
+p = configargparse.ArgParser()
+p.add('-c', '--config', required=True, is_config_file=True, help='Config file path')
+p.add("--side",  type=str, help="side information")
+p.add("--y",     type=str, help="matrix")
+p.add("--lambda_b", type=float, help="regularization for beta", default = 5.0)
+p.add("--lambda_u", type=float, help="regularization for u",    default = 5.0)
+p.add("--lambda_v", type=float, help="regularization for v",    default = 5.0)
+p.add('--h_size',       required=True, help='List of hidden sizes (convolutional).',type=int)
+p.add('--learning_rates', required=True, action='append', help='List of applied learning rates.', type=float)
+p.add('--lr_durations',   required=True, action='append', help='List of durations for learning rates in epochs.', type=int)
+p.add('--batch_size', required=True, help='Size of the minibatch.', type=int)
+p.add('--test_ratio', required=True, help='Ratio of the testset.', type=float)
+#p.add("--noise", required=True, type=float, help="Noise multiplier (1.0 is SGLD)")
+p.add("--alpha", required=True, type=float, help="Noise precisoin (default 5.0)")
+p.add("--optimizer", required=True, type=str, help = "Optimizer to use", choices = ["sgd", "sgld"])
+p.add("--board", required=False, type=str, help="board directory", default=None)
+p.add("--save",  required=False, type=str, help="filename to save the model to", default = None)
+p.add("--save_rmse", required=False, type=str, help="filename to save RMSEs", default = None)
+args = p.parse_args()
+
+#parser = argparse.ArgumentParser()
+#parser.add_argument("--lambda-b", type=float, help="regularization for beta", default = 5.0)
+#parser.add_argument("--lambda-u", type=float, help="regularization for u",    default = 5.0)
+#parser.add_argument("--lambda-v", type=float, help="regularization for v",    default = 5.0)
+#parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
+#parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
+#parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
+#parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
+#parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
+#parser.add_argument("--test-ratio", type=float, help="ratio of y values to move to test set (default 0.20)", default=0.20)
+#parser.add_argument("--noise", type=float, help="Noise multiplier (1.0 is SGLD)", default=1.0)
+#parser.add_argument("--alpha", type=float, help="Noise precisoin (default 5.0)", default=5.0)
+#parser.add_argument("--optimizer", type=str,
+#                    help = "Optimizer to use",
+#                    choices = ["sgd", "sgld"],
+#                    default = "sgd")
+#parser.add_argument("--save",  type=str,   help="filename to save the model to", default = None)
+
+#args = parser.parse_args()
 
 import tensorflow as tf
 import scipy.io
 import numpy as np
 import chemblnet as cn
 from scipy.sparse import hstack
+import os
 
+epochs = sum(args.lr_durations)
 label = scipy.io.mmread(args.y)
 X     = scipy.io.mmread(args.side).tocsr()
+
+board = args.board
+
+if board is None:
+    identifier, ext = os.path.splitext(os.path.basename(args.config))
+    board = "boards/" + identifier
 
 Ytrain, Ytest = cn.make_train_test(label, args.test_ratio)
 Ytrain = Ytrain.tocsr()
@@ -37,19 +66,20 @@ Nprot  = Ytrain.shape[1]
 Ncmpd  = Ytrain.shape[0]
 
 batch_size = args.batch_size
-h_size     = args.hsize
+h_size     = args.h_size
 lambda_u   = args.lambda_u
 lambda_v   = args.lambda_v
 lambda_b   = args.lambda_b
 alpha      = args.alpha
-noise      = args.noise
-lrate      = 1e-4
-lrate_decay = 0.1 #0.986
-lrate_min  = 3e-6
+#lrate_decay = 0.1 #0.986
+#lrate_min  = 3e-6
 epsilon    = 1e-5
 
 ## variables for the model
 init_std = 0.1
+lr_path = np.repeat(args.learning_rates[0], args.lr_durations[0])
+for i in range(1, len(args.learning_rates)):
+    lr_path = np.concatenate([lr_path, np.repeat(args.learning_rates[i], args.lr_durations[i])])
 
 Ytest_std  = np.std( Ytest.data ) if Ytest.nnz > 0 else np.nan
 
@@ -63,12 +93,12 @@ print("Num proteins:   %d" % Nprot)
 print("Num features:   %d" % Nfeat)
 print("Test stdev:     %f" % Ytest_std)
 print("-----------------------")
-print("Num epochs:     %d" % args.epochs)
+print("Num epochs:     %d" % epochs)
 print("Hidden size:    %d" % h_size)
 print("Lambda u        %.1e" % lambda_u)
 print("Lambda v        %.1e" % lambda_v)
 print("Lambda beta     %.1e" % lambda_b)
-print("Learning rate:  %.1e" % lrate)
+print("Learning rate:  %s"   % args.learning_rates)
 print("Batch size:     %d"   % batch_size)
 print("Optimizer:      %s"   % args.optimizer)
 print("-----------------------")
@@ -169,13 +199,14 @@ with tf.Session() as sess:
   print("Test rmse before start:  %.5f" % test_rmse)
   print("Train rmse before start: %.5f" % train_rmse)
 
-  for epoch in range(args.epochs):
+  for epoch in range(epochs):
+    lrate = lr_path[epoch]
     rIdx = np.random.permutation(Ytrain.shape[0])
     
-    if decay_cnt > 5 and lrate >= lrate_min:
-      lrate = np.max( [lrate * lrate_decay, lrate_min] )
-      decay_cnt = 0
-      best_train_rmse = train_rmse
+    #if decay_cnt > 5 and lrate >= lrate_min:
+    #  lrate = np.max( [lrate * lrate_decay, lrate_min] )
+    #  decay_cnt = 0
+    #  best_train_rmse = train_rmse
 
     ## mini-batch loop
     for start in np.arange(0, Ytrain.shape[0] - batch_size + 1, batch_size):
@@ -197,6 +228,9 @@ with tf.Session() as sess:
 
 
     ## epoch's Ytest error
+    if epoch % 20 == 0:
+      print("     RMSE(tr)  RMSE(te)\t| lr")
+
     if epoch % 1 == 0:
       test_rmse  = sess.run(y_rmse, feed_dict = fd_test)
       train_rmse = sess.run(y_rmse, feed_dict = fd_train)
@@ -206,7 +240,15 @@ with tf.Session() as sess:
       else:
         decay_cnt += 1
 
-      print("%3d. %.5f  %.5f  [lr %.1e]" % (epoch, train_rmse, test_rmse, lrate) )
+      print("%3d. %.5f   %.5f\t|  %.1e" % (epoch, train_rmse, test_rmse, lrate) )
+
+  if args.save_rmse is not None:
+      ## saving RMSE values
+      if not os.path.isfile(args.save_rmse):
+          with open(args.save_rmse, "w") as myfile:
+              myfile.write("train_rmse,test_rmse\n")
+      with open(args.save_rmse, "a") as myfile:
+          myfile.write("%.6f,%.6f\n" % (train_rmse, test_rmse))
 
   ## after the training loop
   if args.save is not None:
