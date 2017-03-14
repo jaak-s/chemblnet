@@ -20,25 +20,6 @@ p.add("--save",  required=False, type=str, help="filename to save the model to",
 p.add("--save_rmse", required=False, type=str, help="filename to save RMSEs", default = None)
 args = p.parse_args()
 
-#parser = argparse.ArgumentParser()
-#parser.add_argument("--lambda-b", type=float, help="regularization for beta", default = 5.0)
-#parser.add_argument("--lambda-u", type=float, help="regularization for u",    default = 5.0)
-#parser.add_argument("--lambda-v", type=float, help="regularization for v",    default = 5.0)
-#parser.add_argument("--hsize", type=int,   help="size of the hidden layer", default = 100)
-#parser.add_argument("--side",  type=str,   help="side information", default = "chembl-IC50-compound-feat.mm")
-#parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50-346targets.mm")
-#parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
-#parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
-#parser.add_argument("--test-ratio", type=float, help="ratio of y values to move to test set (default 0.20)", default=0.20)
-#parser.add_argument("--noise", type=float, help="Noise multiplier (1.0 is SGLD)", default=1.0)
-#parser.add_argument("--alpha", type=float, help="Noise precisoin (default 5.0)", default=5.0)
-#parser.add_argument("--optimizer", type=str,
-#                    help = "Optimizer to use",
-#                    choices = ["sgd", "sgld"],
-#                    default = "sgd")
-#parser.add_argument("--save",  type=str,   help="filename to save the model to", default = None)
-
-#args = parser.parse_args()
 
 import tensorflow as tf
 import scipy.io
