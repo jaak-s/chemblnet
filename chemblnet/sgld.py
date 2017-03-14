@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.python.framework.ops import colocate_with
 
 class SGLD(tf.train.Optimizer):
     def __init__(self,
@@ -36,14 +37,10 @@ class SGLD(tf.train.Optimizer):
             return tf.group(*([update_op] + add_noise_ops), name=name)
 
     def _noise_dense(self, var):
-        with self._maybe_colocate_with(var):
-          updated_var_value = var._ref()  # pylint: disable=protected-access
-          normalized_var = clip_ops.clip_by_norm(
-              updated_var_value, self._max_norm, self._vars_to_clip_dims[var])
-          delta = updated_var_value - normalized_var
-        with ops.colocate_with(var):
-          return var.assign_sub(delta, use_locking=self._use_locking)
-        pass
+        updated_var_value = var._ref()  # pylint: disable=protected-access
+        noise = tf.random_normal(shape = tf.shape(var), stddev = tf.sqrt(self._learning_rate))
+        with colocate_with(var):
+            return var.assign_add(noise)
 
     def _noise_sparse(self, grad, var):
         ## TODO: add noise
