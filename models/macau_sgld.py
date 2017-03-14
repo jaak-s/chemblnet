@@ -52,10 +52,13 @@ label = scipy.io.mmread(args.y)
 X     = scipy.io.mmread(args.side).tocsr()
 
 board = args.board
+save_rmse = args.save_rmse
 
+identifier, ext = os.path.splitext(os.path.basename(args.config))
 if board is None:
-    identifier, ext = os.path.splitext(os.path.basename(args.config))
     board = "boards/" + identifier
+if save_rmse is None:
+    save_rmse = identifier + "-results.csv"
 
 Ytrain, Ytest = cn.make_train_test(label, args.test_ratio)
 Ytrain = Ytrain.tocsr()
@@ -250,12 +253,12 @@ with tf.Session() as sess:
 
       print("%3d. %.5f   %.5f\t|  %.1e" % (epoch, train_rmse, test_rmse, lrate) )
 
-  if args.save_rmse is not None:
+  if save_rmse is not None:
       ## saving RMSE values
-      if not os.path.isfile(args.save_rmse):
-          with open(args.save_rmse, "w") as myfile:
+      if not os.path.isfile(save_rmse):
+          with open(save_rmse, "w") as myfile:
               myfile.write("train_rmse,test_rmse\n")
-      with open(args.save_rmse, "a") as myfile:
+      with open(save_rmse, "a") as myfile:
           myfile.write("%.6f,%.6f\n" % (train_rmse, test_rmse))
 
   ## after the training loop
