@@ -12,6 +12,7 @@ class SGLD(tf.train.Optimizer):
         self._opt = tf.train.GradientDescentOptimizer(learning_rate)
         self._learning_rate = learning_rate
         self._name = name
+        self._use_locking = use_locking
 
     def compute_gradients(self, *args, **kwargs):
         return self._opt.compute_gradients(*args, **kwargs)
@@ -43,8 +44,18 @@ class SGLD(tf.train.Optimizer):
         updated_var_value = var._ref()  # pylint: disable=protected-access
         noise = tf.random_normal(shape = tf.shape(var), stddev = tf.sqrt(self._learning_rate))
         with colocate_with(var):
-            return var.assign_add(noise)
+            return var.assign_add(noise, use_locking=self._use_locking)
 
     def _noise_sparse(self, grad, var):
-        ## TODO: add noise
-        pass
+        assert isinstance(grad, tf.IndexedSlices)
+        #import ipdb; ipdb.set_trace()
+
+        #with colocate_with(var):
+        #    var_subset = tf.gather(var, grad.indices)
+
+        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = tf.sqrt(self._learning_rate))
+        noise_sparse = tf.IndexedSlices(noise, grad.indices, grad.dense_shape)
+
+        with colocate_with(var):
+            return var.scatter_sub(noise_sparse, use_locking=self._use_locking)
+
