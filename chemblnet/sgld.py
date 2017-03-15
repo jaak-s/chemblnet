@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow.python.framework.ops import colocate_with
 
 class SGLD(tf.train.Optimizer):
+    """ Following variable_clipping_optimizer.py in TF."""
+
     def __init__(self,
                  learning_rate,
                  use_locking=False,
@@ -9,6 +11,7 @@ class SGLD(tf.train.Optimizer):
         super(SGLD, self).__init__(use_locking, name)
         self._opt = tf.train.GradientDescentOptimizer(learning_rate)
         self._learning_rate = learning_rate
+        self._name = name
 
     def compute_gradients(self, *args, **kwargs):
         return self._opt.compute_gradients(*args, **kwargs)
@@ -28,8 +31,8 @@ class SGLD(tf.train.Optimizer):
                 for grad, var in grads_and_vars:
                     if grad is None:
                         continue
-                    with tf.name_scope("sgld_noise_" + var.op_name):
-                        if isinstance(grad, ops.Tensor):
+                    with tf.name_scope("sgld_noise_" + var.op.name):
+                        if isinstance(grad, tf.Tensor):
                             add_noise_ops.append(self._noise_dense(var))
                         else:
                             add_noise_ops.append(self._noise_sparse(grad, var))
