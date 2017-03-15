@@ -48,10 +48,6 @@ class SGLD(tf.train.Optimizer):
 
     def _noise_sparse(self, grad, var):
         assert isinstance(grad, tf.IndexedSlices)
-        #import ipdb; ipdb.set_trace()
-
-        #with colocate_with(var):
-        #    var_subset = tf.gather(var, grad.indices)
 
         noise = tf.random_normal(shape = tf.shape(grad.values), stddev = tf.sqrt(self._learning_rate))
         noise_sparse = tf.IndexedSlices(noise, grad.indices, grad.dense_shape)
