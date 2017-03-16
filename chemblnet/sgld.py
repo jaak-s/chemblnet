@@ -1,5 +1,35 @@
 import tensorflow as tf
 from tensorflow.python.framework.ops import colocate_with
+import numpy as np
+
+class PosteriorMean(object):
+    """Class for computing posterior mean and variance."""
+    def __init__(self):
+        self.n = 0
+        self.sample_avg = None
+        self.sample_var = None
+
+    def addSample(self, sample_new, average):
+        if not average:
+            self.n = 0
+            self.sample_avg = np.array(sample_new)
+            return
+        ## averaging
+        self.n += 1
+        if self.n == 1:
+            self.sample_avg = np.array(sample_new)
+            self.sample_var = np.zeros(sample_new.shape)
+            return
+        delta = sample_new - self.sample_avg
+        self.sample_avg += delta / self.n
+        self.sample_var += delta * (sample_new - self.sample_avg)
+
+    def getVar(self):
+        return self.sample_var / (self.n - 1)
+
+    def getMean(self):
+        return self.sample_avg
+
 
 class SGLD(tf.train.Optimizer):
     """ Following variable_clipping_optimizer.py in TF."""
@@ -42,14 +72,14 @@ class SGLD(tf.train.Optimizer):
 
     def _noise_dense(self, var):
         updated_var_value = var._ref()  # pylint: disable=protected-access
-        noise = tf.random_normal(shape = tf.shape(var), stddev = tf.sqrt(self._learning_rate))
+        noise = tf.random_normal(shape = tf.shape(var), stddev = tf.sqrt(2 * self._learning_rate))
         with colocate_with(var):
             return var.assign_add(noise, use_locking=self._use_locking)
 
     def _noise_sparse(self, grad, var):
         assert isinstance(grad, tf.IndexedSlices)
 
-        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = tf.sqrt(self._learning_rate))
+        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = tf.sqrt(2 * self._learning_rate))
         noise_sparse = tf.IndexedSlices(noise, grad.indices, grad.dense_shape)
 
         with colocate_with(var):
