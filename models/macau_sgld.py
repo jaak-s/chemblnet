@@ -14,6 +14,7 @@ p.add('--batch_size', required=True, help='Size of the minibatch.', type=int)
 p.add('--test_ratio', required=True, help='Ratio of the testset.', type=float)
 p.add("--temperature", required=False, type=float, help="Noise multiplier for SGLD (default 1.0)", default=1.0)
 p.add("--burnin", required=False, type=int, help="Burn-in for SGLD (default 20)", default=20)
+p.add("--adaptive_lambda", required=False, type=bool, help="Adaptive lambda for SGLD (default True)", default=False)
 p.add("--alpha", required=True, type=float, help="Noise precisoin (default 5.0)")
 p.add("--optimizer", required=True, type=str, help = "Optimizer to use", choices = ["sgd", "sgld", "adam", "rmsprop"])
 p.add("--board", required=False, type=str, help="board directory", default=None)
@@ -61,6 +62,10 @@ alpha      = args.alpha
 epsilon    = 1e-5
 temperature = args.temperature
 burnin      = args.burnin
+adaptive_lambda = False #args.adaptive_lambda
+lambda_a0   = 0.1
+lambda_b0   = 0.1
+adaptive_start = 5
 
 ## variables for the model
 init_std = 0.1
@@ -90,8 +95,9 @@ print("Batch size:     %d"   % batch_size)
 print("Optimizer:      %s"   % args.optimizer)
 print("-----------------------")
 print("[ SGLD only ]")
-print("Burn-in:        %d"   % burnin)
-print("Temperature:    %.1e" % temperature)
+print("Burn-in:         %d"   % burnin)
+print("Temperature:     %.1e" % temperature)
+print("Adaptive lambda: %r"   % adaptive_lambda)
 
 beta = tf.Variable(tf.truncated_normal([Nfeat, h_size], stddev=init_std))
 #b1 = tf.Variable(tf.truncated_normal([h_size], ))
@@ -169,6 +175,12 @@ def select_y(X, row_idx):
 def rmse(ytrue, yhat):
     return np.sqrt(np.mean(np.square(ytrue - yhat)))
 
+def sample_lambda(theta, a0, b0):
+    """ Samples lambda for theta (single scalar)."""
+    lambda_a = a0 + np.prod(theta.shape) / 2.0
+    lambda_b = b0 + np.square(theta).sum() / 2.0
+    return np.random.gamma(lambda_a, 1.0 / lambda_b)
+
 Xi, Xs, Xv = select_rows(X, np.arange(X.shape[0]))
 Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest.shape[0]))
 Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytrain.shape[0]))
@@ -191,6 +203,11 @@ fd_train[x_ids_val] = Xv
 fd_train[u_idx]     = np.arange(0, Ytrain.shape[0])
 fd_train[y_idx]     = Ytr_idx
 fd_train[y_val]     = Ytr_val
+
+if args.optimizer != "sgld":
+    header = "     RMSE(tr)  RMSE(te)\t| lr"
+else:
+    header = "     RMSE(tr)  RMSE(te)\t| lmb_u\tlmb_v\tlmb_b\t| lr"
 
 with tf.Session() as sess:
   sess.run(tf.global_variables_initializer())
@@ -232,13 +249,14 @@ with tf.Session() as sess:
 
     ## epoch's Ytest error
     if epoch % 20 == 0:
-        print("     RMSE(tr)  RMSE(te)\t| lr")
+        print(header)
 
     if epoch % 1 == 0:
         if args.optimizer != "sgld":
             test_rmse  = sess.run(y_rmse, feed_dict = fd_test)
             train_rmse = sess.run(y_rmse, feed_dict = fd_train)
         else:
+            ## SGLD
             if epoch == burnin:
                 print("  ----- Burn-in complete, averaging samples -----")
             test_y_hat  = sess.run(y_hat_sel, feed_dict = fd_test)
@@ -249,6 +267,12 @@ with tf.Session() as sess:
 
             test_rmse  = rmse(fd_test[y_val], test_y_avg.getMean())
             train_rmse = rmse(fd_train[y_val], train_y_avg.getMean())
+            
+            if adaptive_lambda and epoch >= adaptive_start:
+                U_data, V_data, beta_data = sess.run([U, V, beta])
+                lambda_u = sample_lambda(U_data, lambda_a0, lambda_b0)
+                lambda_v = sample_lambda(V_data, lambda_a0, lambda_b0)
+                lambda_b = sample_lambda(beta_data, lambda_a0, lambda_b0)
 
             #test_rmse1  = rmse(fd_test[y_val], test_y_hat)
             #train_rmse1 = rmse(fd_train[y_val], train_y_hat)
@@ -259,7 +283,10 @@ with tf.Session() as sess:
         else:
             decay_cnt += 1
 
-        print("%3d. %.5f   %.5f\t|  %.1e" % (epoch, train_rmse, test_rmse, lrate) )
+        if args.optimizer == "sgld":
+            print("%3d. %.5f   %.5f\t| %.1f\t%.1f\t%.1f\t| %.1e" % (epoch, train_rmse, test_rmse, lambda_u, lambda_v, lambda_b, lrate) )
+        else:
+            print("%3d. %.5f   %.5f\t|  %.1e" % (epoch, train_rmse, test_rmse, lrate) )
 
   if save_rmse is not None:
       ## saving RMSE values
