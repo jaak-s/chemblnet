@@ -1,13 +1,50 @@
 import tensorflow as tf
+from tensorflow.python.framework.ops import colocate_with
+import numpy as np
+
+class PosteriorMean(object):
+    """Class for computing posterior mean and variance."""
+    def __init__(self):
+        self.n = 0
+        self.sample_avg = None
+        self.sample_var = None
+
+    def addSample(self, sample_new, average):
+        if not average:
+            self.n = 0
+            self.sample_avg = np.array(sample_new)
+            return
+        ## averaging
+        self.n += 1
+        if self.n == 1:
+            self.sample_avg = np.array(sample_new)
+            self.sample_var = np.zeros(sample_new.shape)
+            return
+        delta = sample_new - self.sample_avg
+        self.sample_avg += delta / self.n
+        self.sample_var += delta * (sample_new - self.sample_avg)
+
+    def getVar(self):
+        return self.sample_var / (self.n - 1)
+
+    def getMean(self):
+        return self.sample_avg
+
 
 class SGLD(tf.train.Optimizer):
+    """ Following variable_clipping_optimizer.py in TF."""
+
     def __init__(self,
                  learning_rate,
                  use_locking=False,
+                 temp=1.0,
                  name="SGLD"):
         super(SGLD, self).__init__(use_locking, name)
         self._opt = tf.train.GradientDescentOptimizer(learning_rate)
         self._learning_rate = learning_rate
+        self._name = name
+        self._use_locking = use_locking
+        self._temp = temp
 
     def compute_gradients(self, *args, **kwargs):
         return self._opt.compute_gradients(*args, **kwargs)
@@ -27,8 +64,8 @@ class SGLD(tf.train.Optimizer):
                 for grad, var in grads_and_vars:
                     if grad is None:
                         continue
-                    with tf.name_scope("sgld_noise_" + var.op_name):
-                        if isinstance(grad, ops.Tensor):
+                    with tf.name_scope("sgld_noise_" + var.op.name):
+                        if isinstance(grad, tf.Tensor):
                             add_noise_ops.append(self._noise_dense(var))
                         else:
                             add_noise_ops.append(self._noise_sparse(grad, var))
@@ -36,15 +73,17 @@ class SGLD(tf.train.Optimizer):
             return tf.group(*([update_op] + add_noise_ops), name=name)
 
     def _noise_dense(self, var):
-        with self._maybe_colocate_with(var):
-          updated_var_value = var._ref()  # pylint: disable=protected-access
-          normalized_var = clip_ops.clip_by_norm(
-              updated_var_value, self._max_norm, self._vars_to_clip_dims[var])
-          delta = updated_var_value - normalized_var
-        with ops.colocate_with(var):
-          return var.assign_sub(delta, use_locking=self._use_locking)
-        pass
+        updated_var_value = var._ref()  # pylint: disable=protected-access
+        noise = tf.random_normal(shape = tf.shape(var), stddev = self._temp * tf.sqrt(2 * self._learning_rate))
+        with colocate_with(var):
+            return var.assign_add(noise, use_locking=self._use_locking)
 
     def _noise_sparse(self, grad, var):
-        ## TODO: add noise
-        pass
+        assert isinstance(grad, tf.IndexedSlices)
+
+        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = self._temp * tf.sqrt(2 * self._learning_rate))
+        noise_sparse = tf.IndexedSlices(noise, grad.indices, grad.dense_shape)
+
+        with colocate_with(var):
+            return var.scatter_sub(noise_sparse, use_locking=self._use_locking)
+
