@@ -154,7 +154,7 @@ else:
 h1e        = tf.nn.embedding_lookup(h1, y_idx_comp)
 W2e        = tf.nn.embedding_lookup(W2, y_idx_prot)
 b2e        = tf.nn.embedding_lookup(b2, tf.squeeze(y_idx_prot, [1]))
-l2         = tf.squeeze(tf.batch_matmul(h1e, W2e, adj_y=True), [1, 2]) + b2e
+l2         = tf.squeeze(tf.matmul(h1e, W2e, transpose_b=True), [1, 2]) + b2e
 y_pred     = l2 + b2g
 
 ## batch normalization doesn't work that well in comparison to Torch 
@@ -198,7 +198,7 @@ Yte_idx_comp, Yte_shape, Yte_idx_prot, Yte_val = select_y(Ytest, np.arange(Ytest
 Ytr_idx_comp, Ytr_shape, Ytr_idx_prot, Ytr_val = select_y(Ytrain, np.arange(Ytrain.shape[0]))
 
 with tf.Session() as sess:
-  sess.run(tf.initialize_all_variables())
+  sess.run(tf.global_variables_initializer())
   best_train_sse = np.inf
   decay_cnt = 0
 
