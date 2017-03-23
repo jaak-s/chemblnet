@@ -8,6 +8,7 @@ parser.add_argument("--y",     type=str,   help="matrix", default = "chembl-IC50
 parser.add_argument("--batch-size", type=int,   help="batch size", default = 100)
 parser.add_argument("--epochs", type=int,  help="number of epochs", default = 200)
 parser.add_argument("--test-ratio", type=float, help="ratio of y values to move to test set (default 0.20)", default=0.20)
+parser.add_argument("--dropout", type=float, help="dropout keep probability (default None)", default=None)
 parser.add_argument("--model", type=str,
                     help = "Network model",
                     choices = ["main", "linear", "non_linear_z", "residual", "residual2", "relu"],
@@ -37,6 +38,7 @@ batch_size = args.batch_size
 h_size     = args.hsize
 reg        = args.reg
 zreg       = args.zreg
+dropout    = args.dropout
 res_reg    = 3e-3
 lrate      = 0.001
 lrate_decay = 0.1 #0.986
@@ -60,6 +62,7 @@ print("Num epochs:     %d" % args.epochs)
 print("Hidden size:    %d" % h_size)
 print("reg:            %.1e" % reg)
 print("Z-reg:          %.1e" % zreg)
+print("Dropout:        %.2f" % dropout)
 print("Learning rate:  %.1e" % lrate)
 print("Batch size:     %d"   % batch_size)
 print("Model:          %s"   % model)
@@ -120,6 +123,7 @@ def batch_norm_wrapper(inputs, is_training, decay = 0.999):
 lambda_reg = tf.placeholder(tf.float32)
 lambda_zreg = tf.placeholder(tf.float32)
 learning_rate = tf.placeholder(tf.float32)
+dropout_keep  = tf.placeholder(tf.float32)
 
 ## model setup
 sp_ids     = tf.SparseTensor(sp_indices, sp_ids_val, sp_shape)
@@ -146,6 +150,12 @@ elif model == "relu":
     h1 = tf.nn.relu(l1 + Ze)
 else:
     raise ValueError("Parameter 'model' has unknown value (%s)." % model)
+
+if dropout is None:
+    dropout = 1.0
+
+if dropout < 1.0:
+    h1 = tf.nn.dropout(h1, keep_prob=dropout_keep)
 
 
 ## batch normalization doesn't work that well in comparison to Torch 
@@ -229,7 +239,8 @@ with tf.Session() as sess:
                                     tr_ind:     True,
                                     lambda_reg:  reg,
                                     lambda_zreg: zreg,
-                                    learning_rate: lrate})
+                                    learning_rate: lrate,
+                                    dropout_keep: dropout})
 
 
     ## epoch's Ytest error
@@ -241,7 +252,8 @@ with tf.Session() as sess:
                                                  y_idx_comp: Yte_idx_comp,
                                                  y_idx_prot: Yte_idx_prot,
                                                  y_val:      Yte_val,
-                                                 tr_ind:     False})
+                                                 tr_ind:     False,
+                                                 dropout_keep: 1.0})
       train_sse = sess.run(y_loss, feed_dict = {sp_indices: Xi,
                                                  sp_shape:   Xs,
                                                  sp_ids_val: Xv,
@@ -249,7 +261,8 @@ with tf.Session() as sess:
                                                  y_idx_comp: Ytr_idx_comp,
                                                  y_idx_prot: Ytr_idx_prot,
                                                  y_val:      Ytr_val,
-                                                 tr_ind:     False})
+                                                 tr_ind:     False,
+                                                 dropout_keep: 1.0})
       if train_sse <= best_train_sse:
         best_train_sse = train_sse
       else:
