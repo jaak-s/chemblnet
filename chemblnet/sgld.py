@@ -89,12 +89,12 @@ class SGLD(tf.train.Optimizer):
 
 
 class pSGLD(tf.train.Optimizer):
-    """Implements pSGLD using RMSProp optimizer in TF:
+    """Implements pSGLD using RMSPropOptimizer in TF:
          pcder=(eps + sqrt(state.history));  
          grad = lr* grad ./ pcder + sqrt(2*lr./pcder).*randn(size(grad))/opts.N ;
        
          params = params - grad;
-       where 'state.history' is stored in "rms" slot in RMSProp in TF.
+       where 'state.history' is stored in "rms" slot in RMSPropOptimizer in TF.
     """
 
     def __init__(self,
@@ -105,7 +105,7 @@ class pSGLD(tf.train.Optimizer):
                  temp=1.0,
                  name="pSGLD"):
         super(pSGLD, self).__init__(use_locking, name)
-        self._opt = tf.train.RMSProp(learning_rate, decay=decay, epsilon=epsilon)
+        self._opt = tf.train.RMSPropOptimizer(learning_rate, decay=decay, epsilon=epsilon)
         self._learning_rate = learning_rate
         self._name = name
         self._use_locking = use_locking
