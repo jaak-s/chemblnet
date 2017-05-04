@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from chemblnet import SGLD
+from chemblnet import SGLD, pSGLD
 
 class SGLDTest(unittest.TestCase):
     def test_sgld_dense(self):
@@ -41,6 +41,20 @@ class SGLDTest(unittest.TestCase):
         self.assertTrue(np.alltrue(zh[[0, 1, 2, 4], :] == 0.0))
         self.assertTrue(zh[3, 0] > 0)
 
+    def test_psgld_dense(self):
+        tf.reset_default_graph()
+
+        x = tf.Variable(tf.zeros(20), dtype=tf.float32)
+        loss = tf.reduce_sum(tf.square(x - 10))
+
+        psgld = pSGLD(learning_rate=1.0)
+        train_op_psgld = psgld.minimize(loss)
+
+        sess = tf.InteractiveSession()
+        sess.run(tf.global_variables_initializer())
+
+        sess.run(train_op_psgld)
+        xh = sess.run(x)
 
 if __name__ == '__main__':
     unittest.main()
