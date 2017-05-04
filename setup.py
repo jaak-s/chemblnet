@@ -1,6 +1,6 @@
 from setuptools import setup
 
-execfile('chemblnet/version.py')
+exec(open('chemblnet/version.py').read())
 
 setup(name='chemblnet',
       version=__version__,

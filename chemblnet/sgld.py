@@ -148,10 +148,11 @@ class pSGLD(tf.train.Optimizer):
     def _noise_sparse(self, grad, var):
         assert isinstance(grad, tf.IndexedSlices)
 
-        ## TODO: using pcder only update slices
-        rms.self._opt.get_slot(var, name="rms")
+        rms = self._opt.get_slot(var, name="rms")
+        rms_sparse = tf.gather(rms, grad.indices)
+        pcder = tf.sqrt(rms_sparse + self._epsilon)
 
-        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = self._temp * tf.sqrt(2 * self._learning_rate))
+        noise = tf.random_normal(shape = tf.shape(grad.values), stddev = self._temp * tf.sqrt(2 * self._learning_rate / pcder))
         noise_sparse = tf.IndexedSlices(noise, grad.indices, grad.dense_shape)
 
         with colocate_with(var):
