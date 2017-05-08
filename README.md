@@ -9,6 +9,16 @@ python setup.py install --user
 
 You also need to install TensorFlow for running the models in this package.
 
+## Installation in Conda
+
+```
+conda create --name chemblnet python=3
+source activate chemblnet
+conda install numpy scipy matplotlib
+conda install ipython
+conda install -c conda-forge tensorflow
+```
+
 # Model training example
 First you need to download IC50 data and ECFP features:
 ```
