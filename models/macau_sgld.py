@@ -1,6 +1,12 @@
 import configargparse
 
+def str2bool(v):
+    return v.lower() in ("yes", "true", "t", "1")
+
+
 p = configargparse.ArgParser()
+p.register('type','bool',str2bool) # add type keyword to registries
+
 p.add('-c', '--config', required=True, is_config_file=True, help='Config file path')
 p.add("--side",  type=str, help="side information")
 p.add("--y",     type=str, help="matrix")
@@ -14,9 +20,11 @@ p.add('--batch_size', required=True, help='Size of the minibatch.', type=int)
 p.add('--test_ratio', required=True, help='Ratio of the testset.', type=float)
 p.add("--temperature", required=False, type=float, help="Noise multiplier for SGLD (default 1.0)", default=1.0)
 p.add("--burnin", required=False, type=int, help="Burn-in for SGLD (default 20)", default=20)
-p.add("--adaptive_lambda", required=False, type=bool, help="Adaptive lambda for SGLD (default True)", default=False)
+p.add("--adaptive_lambda", required=False, type="bool", help="Adaptive lambda for SGLD (default True)", default=False)
 p.add("--alpha", required=True, type=float, help="Noise precisoin (default 5.0)")
-p.add("--optimizer", required=True, type=str, help = "Optimizer to use", choices = ["sgd", "sgld", "adam", "rmsprop"])
+p.add("--optimizer", required=True, type=str, help="Optimizer to use", choices = ["sgd", "sgld", "adam", "rmsprop"])
+p.add("--rmsprop_centered", required=False, type="bool", help="Center RMSProp", default=False)
+p.add("--rmsprop_momentum", required=False, type=float, help="Momentum for RMSProp", default=0.0)
 p.add("--board", required=False, type=str, help="board directory", default=None)
 p.add("--save",  required=False, type=str, help="filename to save the model to", default = None)
 p.add("--save_rmse", required=False, type=str, help="filename to save RMSEs", default = None)
@@ -62,7 +70,7 @@ alpha      = args.alpha
 epsilon    = 1e-5
 temperature = args.temperature
 burnin      = args.burnin
-adaptive_lambda = False #args.adaptive_lambda
+adaptive_lambda = args.adaptive_lambda
 lambda_a0   = 0.1
 lambda_b0   = 0.1
 adaptive_start = 5
@@ -94,10 +102,15 @@ print("Learning rate:  %s"   % args.learning_rates)
 print("Batch size:     %d"   % batch_size)
 print("Optimizer:      %s"   % args.optimizer)
 print("-----------------------")
-print("[ SGLD only ]")
-print("Burn-in:         %d"   % burnin)
-print("Temperature:     %.1e" % temperature)
-print("Adaptive lambda: %r"   % adaptive_lambda)
+if args.optimizer == "rmsprop":
+    print("[ RMSProp options ]")
+    print("centered:       %r" % args.rmsprop_centered)
+    print("momentum:       %r" % args.rmsprop_momentum)
+if args.optimizer == "sgld":
+    print("[ SGLD options ]")
+    print("Burn-in:        %d"   % burnin)
+    print("Temperature:    %.1e" % temperature)
+    print("Adaptive lambda: %r"   % adaptive_lambda)
 
 beta = tf.Variable(tf.truncated_normal([Nfeat, h_size], stddev=init_std))
 #b1 = tf.Variable(tf.truncated_normal([h_size], ))
@@ -149,7 +162,7 @@ if args.optimizer == "adam":
 elif args.optimizer == "sgd":
     train_op   = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 elif args.optimizer == "rmsprop":
-    train_op   = tf.train.RMSPropOptimizer(learning_rate).minimize(loss)
+    train_op   = tf.train.RMSPropOptimizer(learning_rate, centered=args.rmsprop_centered, momentum=args.rmsprop_momentum).minimize(loss)
 elif args.optimizer == "sgld":
     train_op   = cn.SGLD(learning_rate, temp = temperature).minimize(loss)
     test_y_avg = cn.PosteriorMean()
