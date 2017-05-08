@@ -4,7 +4,7 @@ Python tools for building ChEMBL network.
 
 # Installation
 ```
-python setup.py install --user
+pip install .
 ```
 
 You also need to install TensorFlow for running the models in this package.
